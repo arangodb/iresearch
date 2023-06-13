@@ -894,8 +894,9 @@ TEST_P(bm25_test_case, test_query) {
     }
   }
 
+  // by_range single + scored_terms_limit(0)
   // by_range single + scored_terms_limit(1)
-  {
+  for (size_t limit = 0; limit != 2; ++limit) {
     auto values = column->iterator(irs::ColumnHint::kNormal);
     ASSERT_NE(nullptr, values);
     auto* actual_value = irs::get<irs::payload>(*values);
@@ -909,7 +910,7 @@ TEST_P(bm25_test_case, test_query) {
     filter.mutable_options()->range.max =
       irs::ViewCast<irs::byte_type>(std::string_view("9"));
     filter.mutable_options()->range.max_type = irs::BoundType::EXCLUSIVE;
-    filter.mutable_options()->scored_terms_limit = 1;
+    filter.mutable_options()->scored_terms_limit = limit;
 
     std::multimap<irs::score_t, uint32_t, std::greater<>> sorted;
     constexpr std::array expected{3, 7};
@@ -938,48 +939,6 @@ TEST_P(bm25_test_case, test_query) {
       ASSERT_EQ(expected[i++], entry.second);
     }
   }
-
-  // FIXME!!!
-  //   // by_range single + scored_terms_limit(0)
-  //   {
-  //     auto values = column->iterator(irs::ColumnHint::kNormal);
-  //     ASSERT_NE(nullptr, values);
-  //     auto* actual_value = irs::get<irs::payload>(*values);
-  //     ASSERT_NE(nullptr, actual_value);
-  //
-  //     irs::by_range filter;
-  //
-  //     filter.field("field").scored_terms_limit(0)
-  //       .include<irs::Bound::MIN>(true).term<irs::Bound::MIN>("8")
-  //       .include<irs::Bound::MAX>(false).term<irs::Bound::MAX>("9");
-  //
-  //     std::multimap<irs::score_t, uint32_t, std::greater<>> sorted;
-  //     constexpr std::array expected{ 3, 7 };
-  //
-  //     irs::bytes_view_input in;
-  //     auto prepared_filter = filter.prepare(reader, prepared_order);
-  //     auto docs = prepared_filter->execute(segment, prepared_order);
-  //     auto* score = irs::get<irs::score>(*docs);
-  //     ASSERT_TRUE(bool(score));
-  //
-  //     while(docs->next()) {
-  //       irs::score_t score_value;
-  //       (*score)(&score_value);
-  //       ASSERT_EQ(docs->value(), values->seek(docs->value()));
-  //       in.reset(actual_value->value);
-  //
-  //       auto str_seq = irs::read_string<std::string>(in);
-  //       auto seq = strtoull(str_seq.c_str(), nullptr, 10);
-  //       sorted.emplace(score_value, seq);
-  //     }
-  //
-  //     ASSERT_EQ(expected.size(), sorted.size());
-  //     size_t i = 0;
-  //
-  //     for (auto& entry: sorted) {
-  //       ASSERT_EQ(expected[i++], entry.second);
-  //     }
-  //   }
 
   // by_range multiple
   {
