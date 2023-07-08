@@ -37,8 +37,8 @@
 #include <fst/expanded-fst.h>
 #include <string_view>
 
-namespace fst {
 
+namespace fst {
 namespace detail {
 
 template<typename T>
@@ -51,6 +51,7 @@ std::false_type has_alloc_helper(...);
 
 template<typename T>
 struct has_alloc : decltype(has_alloc_helper<T>(0)) {};
+
 }  // namespace
 
 template <class Arc>
@@ -296,7 +297,6 @@ inline ssize_t NumOutputEpsilons(const MutableFst<Arc> &fst,
 
 // A useful alias when using StdArc.
 using StdMutableFst = MutableFst<StdArc>;
-
 
 // This is a helper class template useful for attaching a MutableFst interface
 // to its implementation, handling reference counting and COW semantics.
