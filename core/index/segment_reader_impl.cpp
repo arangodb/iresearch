@@ -228,14 +228,14 @@ void SegmentReaderImpl::Update(const directory& dir, const SegmentMeta& meta,
 }
 
 uint64_t SegmentReaderImpl::CountMappedMemory() const {
-  uint64_t mapped{0};
+  uint64_t bytes = 0;
   if (field_reader_ != nullptr) {
-    mapped += field_reader_->CountMappedMemory();
+    bytes += field_reader_->CountMappedMemory();
   }
   if (data_ != nullptr && data_->columnstore_reader_ != nullptr) {
-    mapped += data_->columnstore_reader_->CountMappedMemory();
+    bytes += data_->columnstore_reader_->CountMappedMemory();
   }
-  return mapped;
+  return bytes;
 }
 
 const irs::column_reader* SegmentReaderImpl::column(

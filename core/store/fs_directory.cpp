@@ -165,13 +165,13 @@ class fs_index_output : public buffered_index_output {
   static index_output::ptr open(const path_char_t* name,
                                 const ResourceManagementOptions& rm) noexcept {
     IRS_ASSERT(name);
-    size_t descriptors{1};
+    size_t descriptors = 1;
     rm.file_descriptors->Increase(descriptors);
-    irs::Finally cleanup = [&]() noexcept {
+    Finally cleanup = [&]() noexcept {
       rm.file_descriptors->DecreaseChecked(descriptors);
     };
-    file_utils::handle_t handle(
-      file_utils::open(name, file_utils::OpenMode::Write, IR_FADVICE_NORMAL));
+    auto handle =
+      file_utils::open(name, file_utils::OpenMode::Write, IR_FADVICE_NORMAL);
 
     if (nullptr == handle) {
       IRS_LOG_ERROR(
@@ -182,9 +182,10 @@ class fs_index_output : public buffered_index_output {
     }
 
     try {
-      auto res = fs_index_output::make<fs_index_output>(std::move(handle), rm);
+      auto output =
+        fs_index_output::make<fs_index_output>(std::move(handle), rm);
       descriptors = 0;
-      return res;
+      return output;
     } catch (...) {
     }
 
@@ -193,24 +194,24 @@ class fs_index_output : public buffered_index_output {
 
   int64_t checksum() const final {
     const_cast<fs_index_output*>(this)->flush();
-    return crc.checksum();
+    return crc_.checksum();
   }
 
  protected:
   size_t CloseImpl() final {
     const auto size = buffered_index_output::CloseImpl();
-    IRS_ASSERT(handle);
-    handle.reset(nullptr);
+    IRS_ASSERT(handle_);
+    handle_.reset();
     rm_.file_descriptors->Decrease(1);
     return size;
   }
 
   void flush_buffer(const byte_type* b, size_t len) final {
-    IRS_ASSERT(handle);
+    IRS_ASSERT(handle_);
 
     const auto len_written =
-      irs::file_utils::fwrite(handle.get(), b, sizeof(byte_type) * len);
-    crc.process_bytes(b, len_written);
+      irs::file_utils::fwrite(handle_.get(), b, sizeof(byte_type) * len);
+    crc_.process_bytes(b, len_written);
 
     if (len && len_written != len) {
       throw io_error{absl::StrCat("Failed to write buffer, written '",
@@ -221,18 +222,19 @@ class fs_index_output : public buffered_index_output {
  private:
   fs_index_output(file_utils::handle_t&& handle,
                   const ResourceManagementOptions& rm) noexcept
-    : handle(std::move(handle)), rm_{rm} {
-    IRS_ASSERT(this->handle);
+    : handle_{std::move(handle)}, rm_{rm} {
+    IRS_ASSERT(handle_);
     rm_.transactions->Increase(sizeof(fs_index_output));
     buffered_index_output::reset(buf_, sizeof buf_);
   }
 
   ~fs_index_output() { rm_.transactions->Decrease(sizeof(fs_index_output)); }
 
+  // TODO(MBkkt) Find better size?
   byte_type buf_[1024];
-  file_utils::handle_t handle;
-  crc32c crc;
+  file_utils::handle_t handle_;
   const ResourceManagementOptions& rm_;
+  crc32c crc_;
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -270,20 +272,20 @@ class fs_index_input : public buffered_index_input {
 
   static index_input::ptr open(const path_char_t* name, size_t pool_size,
                                IOAdvice advice,
-                               const ResourceManagementOptions& rm) noexcept {
+                               const ResourceManagementOptions& rm) noexcept
+    try {
     IRS_ASSERT(name);
 
-    size_t descriptors{1};
+    size_t descriptors = 1;
     rm.file_descriptors->Increase(descriptors);
-    irs::Finally cleanup = [&]() noexcept {
+    Finally cleanup = [&]() noexcept {
       rm.file_descriptors->DecreaseChecked(descriptors);
     };
 
     auto handle = file_handle::make(rm);
     handle->io_advice = advice;
-    handle->handle =
-      irs::file_utils::open(name, get_read_mode(handle->io_advice),
-                            get_posix_fadvice(handle->io_advice));
+    handle->handle = file_utils::open(name, get_read_mode(handle->io_advice),
+                                      get_posix_fadvice(handle->io_advice));
 
     if (nullptr == handle->handle) {
       IRS_LOG_ERROR(
@@ -303,13 +305,11 @@ class fs_index_input : public buffered_index_input {
 
     handle->size = size;
 
-    try {
-      auto res = ptr(new fs_index_input(std::move(handle), pool_size));
-      descriptors = 0;
-      return res;
-    } catch (...) {
-      return nullptr;
-    }
+    ptr input{new fs_index_input(std::move(handle), pool_size)};
+    descriptors = 0;
+    return input;
+  } catch (...) {
+    return nullptr;
   }
 
   size_t length() const final { return handle_->size; }
@@ -361,12 +361,13 @@ class fs_index_input : public buffered_index_input {
       return std::make_shared<file_handle>(rm);
     }
 
-    file_handle(const ResourceManagementOptions& rm) : resource_manager{rm} {}
+    file_handle(const ResourceManagementOptions& rm) noexcept
+      : resource_manager{rm} {}
 
     ~file_handle() {
-      const bool release = handle.get() != nullptr;
+      const auto released = static_cast<size_t>(handle != nullptr);
       handle.reset();
-      resource_manager.file_descriptors->DecreaseChecked(release);
+      resource_manager.file_descriptors->DecreaseChecked(released);
     }
     operator void*() const { return handle.get(); }
 
@@ -434,9 +435,9 @@ fs_index_input::fs_index_input(const fs_index_input& rhs) noexcept
 
 fs_index_input::~fs_index_input() {
   if (handle_) {
-    auto* r = handle_->resource_manager.readers;
+    auto& r = *handle_->resource_manager.readers;
     handle_.reset();
-    r->Decrease(sizeof(pooled_fs_index_input));
+    r.Decrease(sizeof(pooled_fs_index_input));
   }
 }
 
@@ -451,9 +452,9 @@ pooled_fs_index_input::pooled_fs_index_input(const fs_index_input& in)
 
 pooled_fs_index_input::~pooled_fs_index_input() noexcept {
   IRS_ASSERT(handle_);
-  auto* r = handle_->resource_manager.readers;
+  auto& r = *handle_->resource_manager.readers;
   handle_.reset();  // release handle before the fs_pool_ is deallocated
-  r->Decrease(sizeof(pooled_fs_index_input));
+  r.Decrease(sizeof(pooled_fs_index_input));
 }
 
 index_input::ptr pooled_fs_index_input::reopen() const {

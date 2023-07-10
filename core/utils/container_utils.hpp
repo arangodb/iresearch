@@ -92,9 +92,6 @@ class raw_block_vector_base : private util::noncopyable {
     size_t size{};      // total buffer size
   };
 
-  explicit raw_block_vector_base(IResourceManager& rm) noexcept
-    : alloc_{rm}, buffers_{{rm}} {}
-
   raw_block_vector_base(raw_block_vector_base&& rhs) noexcept = default;
   raw_block_vector_base& operator=(raw_block_vector_base&& rhs) = delete;
 
@@ -126,7 +123,11 @@ class raw_block_vector_base : private util::noncopyable {
 #endif
 
  protected:
-  IRS_NO_UNIQUE_ADDRESS ManagedTypedAllocator<byte_type> alloc_;
+  explicit raw_block_vector_base(IResourceManager& rm) noexcept
+    : alloc_{rm}, buffers_{{rm}} {}
+
+  // TODO(MBkkt) Maybe make it batched for push, clear and dtor
+  ManagedTypedAllocator<byte_type> alloc_;
   std::vector<buffer_t, ManagedTypedAllocator<buffer_t>> buffers_;
 };
 
@@ -162,7 +163,7 @@ class raw_block_vector : public raw_block_vector_base {
   }
 
  private:
-  buffer_t CreateValue() {
+  IRS_FORCE_INLINE buffer_t CreateValue() {
     if (buffers_.size() < NumBuckets) {
       const auto& bucket = kMeta[buffers_.size()];
       return {bucket.offset, alloc_.allocate(bucket.size), bucket.size};

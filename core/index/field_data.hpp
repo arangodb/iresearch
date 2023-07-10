@@ -194,7 +194,6 @@ class field_data : util::noncopyable {
   uint32_t last_pos_;
   uint32_t offs_;
   uint32_t last_start_offs_;
-  IResourceManager& resource_manager_;
   bool seen_{false};
 };
 

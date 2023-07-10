@@ -154,9 +154,8 @@ class column final : public irs::column_output {
   irs::type_info compression_;
   compression::compressor::ptr deflater_;
   columnstore_writer::column_finalizer_f finalizer_;
-  IResourceManager& resource_manager_;
-  std::vector<column_block, ManagedTypedAllocator<column_block>>
-    blocks_;  // at most 65536 blocks
+  // at most 65536 blocks
+  std::vector<column_block, ManagedTypedAllocator<column_block>> blocks_;
   memory_output data_;
   memory_output docs_;
   sparse_bitmap_writer docs_writer_{docs_.stream, ctx_.version};
@@ -183,9 +182,9 @@ class writer final : public columnstore_writer {
   static constexpr std::string_view kDataFormatExt = "csd";
   static constexpr std::string_view kIndexFormatExt = "csi";
 
-  writer(Version version, IResourceManager& resource_manager,
-         bool consolidation);
-  ~writer() override;
+  writer(Version version, bool consolidation,
+         IResourceManager& resource_manager);
+  ~writer() final;
 
   void prepare(directory& dir, const SegmentMeta& meta) final;
   column_t push_column(const ColumnInfo& info,
@@ -194,15 +193,14 @@ class writer final : public columnstore_writer {
   void rollback() noexcept final;
 
  private:
-  IResourceManager& resource_manager_;
   directory* dir_;
   std::string data_filename_;
-  std::deque<column, ManagedTypedAllocator<column>>
-    columns_;  // pointers remain valid
+  // pointers remain valid
+  std::deque<column, ManagedTypedAllocator<column>> columns_;
   std::vector<column*> sorted_columns_;
   index_output::ptr data_out_;
   encryption::stream::ptr data_cipher_;
-  std::unique_ptr<byte_type[]> buf_;
+  byte_type* buf_;
   Version ver_;
   bool consolidation_;
 };
@@ -294,9 +292,8 @@ class reader final : public columnstore_reader {
   index_input::ptr data_in_;
 };
 
-irs::columnstore_writer::ptr make_writer(
-  Version version, const ResourceManagementOptions& resource_manager,
-  bool consolidation);
+irs::columnstore_writer::ptr make_writer(Version version, bool consolidation,
+                                         IResourceManager& resource_manager);
 irs::columnstore_reader::ptr make_reader();
 
 }  // namespace columnstore2

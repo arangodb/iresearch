@@ -325,6 +325,7 @@ void memory_index_output::truncate(size_t pos) {
 
 void memory_index_output::switch_buffer() {
   auto idx = file_.buffer_offset(file_pointer());
+
   buf_ =
     idx < file_.buffer_count() ? file_.get_buffer(idx) : file_.push_buffer();
   pos_ = buf_.data;
@@ -437,8 +438,7 @@ index_output::ptr memory_directory::create(std::string_view name) noexcept {
     auto& file = res.first->second;
 
     if (res.second) {
-      file =
-        std::make_unique<memory_file>(files_.get_allocator().ResourceManager());
+      file = std::make_unique<memory_file>(files_.get_allocator().Manager());
     }
 
     file->reset();

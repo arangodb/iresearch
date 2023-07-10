@@ -163,15 +163,13 @@ bool segment_writer::remove(doc_id_t doc_id) noexcept {
 segment_writer::segment_writer(ConstructToken, directory& dir,
                                const SegmentWriterOptions& options) noexcept
   : scorers_{options.scorers},
-    sort_{options.column_info, {}, *options.resource_manager.transactions},
-    docs_context_{{*options.resource_manager.transactions}},
+    sort_{options.column_info, {}, options.resource_manager},
+    docs_context_{{options.resource_manager}},
     fields_{options.feature_info, cached_columns_, options.scorers_features,
-            *options.resource_manager.transactions, options.comparator},
+            options.resource_manager, options.comparator},
     column_info_{&options.column_info},
-    dir_{dir},
-    resource_manager_{options.resource_manager} {
-  docs_mask_.set =
-    decltype(docs_mask_.set){{*options.resource_manager.transactions}};
+    dir_{dir} {
+  docs_mask_.set = {{options.resource_manager}};
 }
 
 bool segment_writer::index(const hashed_string_view& name, const doc_id_t doc,
@@ -205,9 +203,9 @@ column_output& segment_writer::stream(const hashed_string_view& name,
   return columns_
     .lazy_emplace(name,
                   [this, &name](const auto& ctor) {
-                    ctor(name, *col_writer_, *resource_manager_.transactions,
-                         *column_info_, cached_columns_,
-                         nullptr != fields_.comparator());
+                    ctor(name, *col_writer_,
+                         docs_context_.get_allocator().Manager(), *column_info_,
+                         cached_columns_, nullptr != fields_.comparator());
                   })
     ->writer(doc_id);
 }
@@ -309,13 +307,14 @@ void segment_writer::reset(const SegmentMeta& meta) {
   seg_name_ = meta.name;
 
   if (!field_writer_) {
-    field_writer_ =
-      meta.codec->get_field_writer(false, *resource_manager_.transactions);
+    field_writer_ = meta.codec->get_field_writer(
+      false, docs_context_.get_allocator().Manager());
     IRS_ASSERT(field_writer_);
   }
 
   if (!col_writer_) {
-    col_writer_ = meta.codec->get_columnstore_writer(false, resource_manager_);
+    col_writer_ = meta.codec->get_columnstore_writer(
+      false, docs_context_.get_allocator().Manager());
     IRS_ASSERT(col_writer_);
   }
 

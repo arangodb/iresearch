@@ -306,12 +306,13 @@ struct OnHeapTracked final : Base {
     : Base{std::forward<Args>(args)...}, rm_{rm} {}
 
  private:
-  IResourceManager& rm_;
   void Destroy() const noexcept final {
     auto& rm = rm_;
     delete this;
     rm.Decrease(sizeof(*this));
   }
+
+  IResourceManager& rm_;
 };
 
 struct ManagedDeleter {
@@ -335,7 +336,7 @@ class managed_ptr final : std::unique_ptr<T, ManagedDeleter> {
   template<typename Base, typename Derived, typename... Args>
   friend managed_ptr<Base> make_managed(Args&&... args);
   template<typename Base, typename Derived, typename... Args>
-  friend managed_ptr<Base> make_tracked_managed(IResourceManager&,
+  friend managed_ptr<Base> make_tracked_managed(IResourceManager& rm,
                                                 Args&&... args);
 
   constexpr explicit managed_ptr(T* p) noexcept : Ptr{p} {}

@@ -22,26 +22,22 @@
 
 #pragma once
 
-#include "shared.hpp"
-
-#if (defined(__clang__) || defined(_MSC_VER) || \
-     defined(__GNUC__) &&                       \
-       (__GNUC__ > 8))  // GCCs <=  don't have "<version>" header
 #include <version>
-#endif
 
 #ifdef __cpp_lib_memory_resource
 #include <memory_resource>
 #endif
 
+#include "shared.hpp"
 #include "utils/managed_allocator.hpp"
 
 namespace irs {
+
 struct IResourceManager {
-  static IResourceManager kNoop;
 #ifdef IRESEARCH_DEBUG
   static IResourceManager kForbidden;
 #endif
+  static IResourceManager kNoop;
 
   IResourceManager() = default;
   virtual ~IResourceManager() = default;
@@ -49,11 +45,19 @@ struct IResourceManager {
   IResourceManager(const IResourceManager&) = delete;
   IResourceManager operator=(const IResourceManager&) = delete;
 
-  virtual bool Increase(size_t) noexcept { return true; }
+  virtual bool Increase([[maybe_unused]] size_t v) noexcept {
+    IRS_ASSERT(this != &kForbidden);
+    IRS_ASSERT(v != 0);
+    return true;
+  }
 
-  virtual void Decrease(size_t) noexcept {}
+  virtual void Decrease([[maybe_unused]] size_t v) noexcept {
+    IRS_ASSERT(this != &kForbidden);
+    IRS_ASSERT(v != 0);
+  }
 
   IRS_FORCE_INLINE void DecreaseChecked(size_t v) noexcept {
+    IRS_ASSERT(this != &kForbidden);
     if (v != 0) {
       Decrease(v);
     }
@@ -70,28 +74,31 @@ struct ResourceManagementOptions {
   IResourceManager* cached_columns{&IResourceManager::kNoop};
 };
 
+// TODO(MBkkt) rename to ManagedStdAllocator
 template<typename T>
 struct ManagedTypedAllocator
-  : ManagedAllocator<std::allocator<T>, IResourceManager> {
-  using Base = ManagedAllocator<std::allocator<T>, IResourceManager>;
+  : ManagedAllocator<IResourceManager, std::allocator<T>> {
+  using Base = ManagedAllocator<IResourceManager, std::allocator<T>>;
+
   explicit ManagedTypedAllocator()
-    : Base(
+    : Base{
 #ifdef IRESEARCH_DEBUG
         IResourceManager::kForbidden
 #else
         IResourceManager::kNoop
 #endif
-      ) {
+      } {
   }
+
   using Base::Base;
 };
 
 #ifdef __cpp_lib_polymorphic_allocator
 template<typename T>
-struct ManagedTypedPmrAllocator
-  : ManagedAllocator<std::pmr::polymorphic_allocator<T>, IResourceManager> {
-  using ManagedAllocator<std::pmr::polymorphic_allocator<T>,
-                         IResourceManager>::ManagedAllocator;
+struct ManagedPmrAllocator
+  : ManagedAllocator<IResourceManager, std::pmr::polymorphic_allocator<T>> {
+  using ManagedAllocator<IResourceManager,
+                         std::pmr::polymorphic_allocator<T>>::ManagedAllocator;
 };
 #endif
 
