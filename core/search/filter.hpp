@@ -24,6 +24,7 @@
 
 #include <functional>
 
+#include "index/index_reader.hpp"
 #include "index/index_reader_options.hpp"
 #include "index/iterators.hpp"
 #include "utils/hash_utils.hpp"
@@ -32,7 +33,6 @@
 
 namespace irs {
 
-struct IndexReader;
 struct PreparedStateVisitor;
 
 struct ExecutionContext {
@@ -42,25 +42,27 @@ struct ExecutionContext {
   WandContext wand;
 };
 
-// Base class for all user-side filters
-class filter {
+class PreparedBase : public memory::Managed {
+ public:
+  doc_iterator::ptr execute(
+    const SubReader& segment,
+    const Scorers& scorers = Scorers::kUnordered) const {
+    return execute({.segment = segment, .scorers = scorers});
+  }
+
+  virtual doc_iterator::ptr execute(const ExecutionContext& ctx) const = 0;
+};
+
+class FilterBase : protected PreparedBase {
  public:
   // Base class for all prepared(compiled) queries
-  class prepared : public memory::Managed {
+  class prepared : public PreparedBase {
    public:
     using ptr = memory::managed_ptr<const prepared>;
 
     static prepared::ptr empty();
 
-    explicit prepared(score_t boost = kNoBoost) noexcept : boost_(boost) {}
-
-    doc_iterator::ptr execute(
-      const SubReader& segment,
-      const Scorers& scorers = Scorers::kUnordered) const {
-      return execute({.segment = segment, .scorers = scorers});
-    }
-
-    virtual doc_iterator::ptr execute(const ExecutionContext& ctx) const = 0;
+    explicit prepared(score_t boost = kNoBoost) noexcept : boost_{boost} {}
 
     virtual void visit(const SubReader& segment, PreparedStateVisitor& visitor,
                        score_t boost) const = 0;
@@ -74,39 +76,47 @@ class filter {
     score_t boost_;
   };
 
-  using ptr = std::unique_ptr<filter>;
+  virtual prepared::ptr prepare(const IndexReader& rdr, const Scorers& ord,
+                                score_t boost,
+                                const attribute_provider* ctx) const = 0;
 
-  virtual ~filter() = default;
+  prepared::ptr prepare(const IndexReader& rdr, const Scorers& ord,
+                        const attribute_provider* ctx) const {
+    return prepare(rdr, ord, irs::kNoBoost, ctx);
+  }
+
+  prepared::ptr prepare(const IndexReader& rdr,
+                        const Scorers& ord = Scorers::kUnordered,
+                        score_t boost = irs::kNoBoost) const {
+    return prepare(rdr, ord, boost, nullptr);
+  }
+
+  virtual doc_iterator::ptr PrepareExecute(
+    std::shared_ptr<const FilterBase>& /*self*/, const SubReader& rdr) const {
+    auto prepared = prepare(rdr);
+    if (!prepared) {
+      return doc_iterator::empty();
+    }
+    return prepared->execute(rdr);
+  }
+
+ private:
+  doc_iterator::ptr execute(const ExecutionContext& ctx) const {
+    IRS_ASSERT(false);
+    return doc_iterator::empty();
+  }
+};
+
+// Base class for all user-side filters
+class filter : public FilterBase {
+ public:
+  using ptr = std::unique_ptr<filter>;
 
   virtual size_t hash() const noexcept {
     return std::hash<type_info::type_id>()(type());
   }
 
   bool operator==(const filter& rhs) const noexcept { return equals(rhs); }
-
-  // boost - external boost
-  virtual filter::prepared::ptr prepare(
-    const IndexReader& rdr, const Scorers& ord, score_t boost,
-    const attribute_provider* ctx) const = 0;
-
-  filter::prepared::ptr prepare(const IndexReader& rdr, const Scorers& ord,
-                                const attribute_provider* ctx) const {
-    return prepare(rdr, ord, irs::kNoBoost, ctx);
-  }
-
-  filter::prepared::ptr prepare(const IndexReader& rdr, const Scorers& ord,
-                                score_t boost) const {
-    return prepare(rdr, ord, boost, nullptr);
-  }
-
-  filter::prepared::ptr prepare(const IndexReader& rdr,
-                                const Scorers& ord) const {
-    return prepare(rdr, ord, irs::kNoBoost);
-  }
-
-  filter::prepared::ptr prepare(const IndexReader& rdr) const {
-    return prepare(rdr, Scorers::kUnordered);
-  }
 
   score_t boost() const noexcept { return boost_; }
 

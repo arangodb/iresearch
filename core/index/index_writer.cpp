@@ -196,17 +196,9 @@ void RemoveFromExistingSegment(DocumentMask& deleted_docs,
   if (query.filter == nullptr) {
     return;
   }
-
-  auto prepared = query.filter->prepare(reader);
-
-  if (IRS_UNLIKELY(!prepared)) {
-    return;  // skip invalid prepared filters
-  }
-
-  auto itr = prepared->execute(reader);
-
+  auto itr = query.filter->PrepareExecute(query.filter, reader);
   if (IRS_UNLIKELY(!itr)) {
-    return;  // skip invalid iterators
+    return;
   }
 
   const auto& docs_mask = *reader.docs_mask();
@@ -229,15 +221,9 @@ bool RemoveFromImportedSegment(DocumentMask& deleted_docs,
   if (query.filter == nullptr) {
     return false;
   }
-
-  auto prepared = query.filter->prepare(reader);
-  if (IRS_UNLIKELY(!prepared)) {
-    return false;  // skip invalid prepared filters
-  }
-
-  auto itr = prepared->execute(reader);
+  auto itr = query.filter->PrepareExecute(query.filter, reader);
   if (IRS_UNLIKELY(!itr)) {
-    return false;  // skip invalid iterators
+    return false;
   }
 
   bool modified = false;
@@ -265,21 +251,12 @@ void FlushedSegmentContext::Remove(IndexWriter::QueryContext& query) {
   if (query.filter == nullptr) {
     return;
   }
+  auto itr = query.filter->PrepareExecute(query.filter, *reader);
+  if (IRS_UNLIKELY(!itr)) {
+    return;
+  }
 
   auto& document_mask = flushed.document_mask;
-
-  auto prepared = query.filter->prepare(*reader);
-
-  if (IRS_UNLIKELY(!prepared)) {
-    return;  // Skip invalid prepared filters
-  }
-
-  auto itr = prepared->execute(*reader);
-
-  if (IRS_UNLIKELY(!itr)) {
-    return;  // Skip invalid iterators
-  }
-
   auto* flushed_docs = segment.flushed_docs_.data() + flushed.GetDocsBegin();
   while (itr->next()) {
     const auto new_doc = itr->value();

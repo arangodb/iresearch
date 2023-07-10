@@ -229,7 +229,7 @@ class IndexWriter : private util::noncopyable {
  public:
   // Additional information required for remove/replace requests
   struct QueryContext {
-    using FilterPtr = std::shared_ptr<const irs::filter>;
+    using FilterPtr = std::shared_ptr<const FilterBase>;
 
     QueryContext() = default;
 
