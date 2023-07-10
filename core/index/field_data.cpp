@@ -697,6 +697,7 @@ field_data::field_data(
     proc_table_{kTermProcessingTables[size_t(random_access)]},
     requested_features_{index_features},
     last_doc_{doc_limits::invalid()} {
+  auto& rm = cached_columns.get_allocator().Manager();
   for (const type_info::type_id feature : features) {
     IRS_ASSERT(feature_columns);
     auto [feature_column_info, feature_writer_factory] =
@@ -1122,7 +1123,7 @@ field_data* fields_data::emplace(const hashed_string_view& name,
       const_cast<field_data*&>(it->second) = &fields_.emplace_back(
         name, features, *feature_info_, *cached_columns_, *cached_features_,
         columns, byte_writer_, int_writer_, index_features,
-        (nullptr != comparator_), fields_.get_allocator().Manager());
+        (nullptr != comparator_));
     } catch (...) {
       fields_map_.erase(it);
       throw;

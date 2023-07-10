@@ -796,7 +796,8 @@ class fst_buffer : public vector_byte_fst {
     }
   };
 
-  fst_buffer(IResourceManager& rm) : vector_byte_fst{{rm}} {}
+  fst_buffer(IResourceManager& rm)
+    : vector_byte_fst{ManagedTypedAllocator<byte_arc>{rm}} {}
 
   using fst_byte_builder = fst_builder<byte_type, vector_byte_fst, fst_stats>;
 
@@ -1096,11 +1097,11 @@ field_writer::field_writer(
 #ifdef __cpp_lib_memory_resource
     block_index_buf_{sizeof(block_t::prefixed_output) * 32},
 #endif
-    blocks_{{resource_manager}},
+    blocks_{ManagedTypedAllocator<entry>{resource_manager}},
     suffix_{resource_manager},
     stats_{resource_manager},
     pw_{std::move(pw)},
-    stack_{{resource_manager}},
+    stack_{ManagedTypedAllocator<entry>{resource_manager}},
     fst_buf_{new fst_buffer{resource_manager}},
     prefixes_(DEFAULT_SIZE, 0),
     version_(version),

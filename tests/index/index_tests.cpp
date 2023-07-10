@@ -16892,6 +16892,7 @@ TEST_P(index_test_case_11, testExternalGenerationDifferentStart) {
   {
     auto reader = writer->GetSnapshot();
     EXPECT_EQ(reader->CountMappedMemory(), 0);
+    EXPECT_EQ(GetResourceManager().file_descriptors.counter_, 0);
   }
 
   {
@@ -16927,6 +16928,9 @@ TEST_P(index_test_case_11, testExternalGenerationDifferentStart) {
   writer->Commit();
   AssertSnapshotEquality(*writer);
   auto reader = irs::DirectoryReader(directory);
+  if (dynamic_cast<irs::memory_directory*>(&directory) == nullptr) {
+    EXPECT_EQ(GetResourceManager().file_descriptors.counter_, 3);
+  }
   auto mapped_memory = reader.CountMappedMemory();
 #ifdef __linux__
   if (dynamic_cast<irs::MMapDirectory*>(&directory) != nullptr) {
