@@ -112,7 +112,7 @@ class field_data : util::noncopyable {
              const feature_set_t& cached_features, columnstore_writer& columns,
              byte_block_pool::inserter& byte_writer,
              int_block_pool::inserter& int_writer, IndexFeatures index_features,
-             bool random_access, IResourceManager& rm);
+             bool random_access);
 
   doc_id_t doc() const noexcept { return last_doc_; }
 

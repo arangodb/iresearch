@@ -16887,6 +16887,7 @@ TEST_P(index_test_case_11, testExternalGenerationDifferentStart) {
   auto* doc1 = gen.next();
 
   irs::IndexWriterOptions writer_options;
+  writer_options.reader_options.resource_manager = GetResourceManager().options;
   auto writer = open_writer(irs::OM_CREATE, writer_options);
   {
     auto reader = writer->GetSnapshot();

@@ -688,7 +688,7 @@ field_data::field_data(
     cached_columns,
   const feature_set_t& cached_features, columnstore_writer& columns,
   byte_block_pool::inserter& byte_writer, int_block_pool::inserter& int_writer,
-  IndexFeatures index_features, bool random_access, IResourceManager& rm)
+  IndexFeatures index_features, bool random_access)
   // Unset optional features
   : meta_{name, index_features & (~(IndexFeatures::OFFS | IndexFeatures::PAY))},
     terms_{*byte_writer},
