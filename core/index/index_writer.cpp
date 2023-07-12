@@ -66,12 +66,13 @@ const FeatureInfoProvider kDefaultFeatureInfo = [](irs::type_info::type_id) {
 struct FlushedSegmentContext {
   FlushedSegmentContext(std::shared_ptr<const SegmentReaderImpl>&& reader,
                         IndexWriter::SegmentContext& segment,
-                        IndexWriter::FlushedSegment& flushed)
+                        IndexWriter::FlushedSegment& flushed,
+                        const ResourceManagementOptions& rm)
     : reader{std::move(reader)}, segment{segment}, flushed{flushed} {
     IRS_ASSERT(this->reader != nullptr);
     if (flushed.docs_mask.count != doc_limits::eof()) {
       IRS_ASSERT(flushed.document_mask.empty());
-      Init();
+      Init(rm);
     }
   }
 
@@ -114,15 +115,16 @@ struct FlushedSegmentContext {
   void MaskUnusedReplace(uint64_t first_tick, uint64_t last_tick);
 
  private:
-  void Init() {
+  void Init(const ResourceManagementOptions& rm) {
     if (!flushed.old2new.empty() && flushed.new2old.empty()) {
-      flushed.new2old.resize(flushed.old2new.size());
+      flushed.new2old =
+        decltype(flushed.new2old){flushed.old2new.size(), {*rm.transactions}};
       for (doc_id_t old_id = 0; const auto new_id : flushed.old2new) {
         flushed.new2old[new_id] = old_id++;
       }
     }
 
-    DocumentMask document_mask;
+    DocumentMask document_mask{{*rm.readers}};
 
     IRS_ASSERT(flushed.GetDocsBegin() < flushed.GetDocsEnd());
     const auto end = flushed.GetDocsEnd() - flushed.GetDocsBegin();
@@ -977,7 +979,7 @@ void IndexWriter::SegmentContext::Flush() {
     committed_buffered_docs_ = 0;
   };
 
-  DocsMask docs_mask;
+  DocsMask docs_mask{.set{flushed_docs_.get_allocator()}};
   auto old2new = writer_->flush(writer_meta_, docs_mask);
 
   if (writer_meta_.meta.live_docs_count == 0) {
@@ -1584,7 +1586,7 @@ ConsolidationResult IndexWriter::Consolidate(
 
       // handle removals if something changed
       if (has_removals) {
-        DocumentMask docs_mask;
+        DocumentMask docs_mask{{*resource_manager_.readers}};
 
         if (!MapRemovals(mappings, merger, docs_mask)) {
           // consolidated segment has docs missing from
@@ -1896,7 +1898,7 @@ IndexWriter::PendingContext IndexWriter::PrepareFlush(const CommitInfo& info) {
   readers.reserve(committed_reader_size);
   pending_meta.segments.reserve(committed_reader_size);
 
-  for (DocumentMask deleted_docs;
+  for (DocumentMask deleted_docs{{*resource_manager_.transactions}};
        const auto& existing_segment : committed_reader.GetReaders()) {
     auto& index_segment =
       committed_meta.index_meta.segments[current_segment_index];
@@ -2183,8 +2185,8 @@ IndexWriter::PendingContext IndexWriter::PrepareFlush(const CommitInfo& info) {
           // one time. Because it's useless and ineffective.
           IRS_ASSERT(flushed_last_tick <= tick);
           // reuse existing reader with initial meta and docs_mask
-          reader =
-            it->second->ReopenDocsMask(dir, flushed.meta, DocumentMask{});
+          reader = it->second->ReopenDocsMask(
+            dir, flushed.meta, DocumentMask{*resource_manager_.readers});
         } else {
           reader = SegmentReaderImpl::Open(dir, flushed.meta, reader_options);
         }
@@ -2200,8 +2202,8 @@ IndexWriter::PendingContext IndexWriter::PrepareFlush(const CommitInfo& info) {
           next_cached[&flushed] = reader;
         }
 
-        auto& segment_ctx =
-          segment_ctxs.emplace_back(std::move(reader), *segment, flushed);
+        auto& segment_ctx = segment_ctxs.emplace_back(
+          std::move(reader), *segment, flushed, resource_manager_);
 
         // mask documents matching filters from all flushed segment_contexts
         // (i.e. from new operations)
@@ -2227,7 +2229,7 @@ IndexWriter::PendingContext IndexWriter::PrepareFlush(const CommitInfo& info) {
       if (segment_ctx.segment.has_replace_) {
         segment_ctx.MaskUnusedReplace(committed_tick_, tick);
       }
-      DocumentMask document_mask;
+      DocumentMask document_mask{{*resource_manager_.readers}};
       IndexSegment new_segment;
       if (segment_ctx.MakeDocumentMask(tick, document_mask, new_segment)) {
         modified |= segment_ctx.flushed.was_flush;

@@ -1344,7 +1344,6 @@ void column::flush_block() {
 
   auto& data_out = *ctx_.data_out;
   auto& block = blocks_.emplace_back();
-
   block.addr = data_out.file_pointer();
   block.last_size = data_.file.length() - addr_table_.back();
 

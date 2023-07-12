@@ -325,7 +325,6 @@ void memory_index_output::truncate(size_t pos) {
 
 void memory_index_output::switch_buffer() {
   auto idx = file_.buffer_offset(file_pointer());
-
   buf_ =
     idx < file_.buffer_count() ? file_.get_buffer(idx) : file_.push_buffer();
   pos_ = buf_.data;

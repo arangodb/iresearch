@@ -267,7 +267,7 @@ class entry : private util::noncopyable {
   volatile_byte_ref data_;  // block prefix or term
   memory::aligned_type<irs::postings_writer::state, block_t> mem_;  // storage
   EntryType type_;  // entry type
-};                  // entry
+};
 
 entry::entry(irs::bytes_view term, irs::postings_writer::state&& attrs,
              bool volatile_term)
@@ -297,15 +297,13 @@ entry::entry(irs::bytes_view prefix, IResourceManager& rm,
 #endif
 }
 
-entry::entry(entry&& rhs) noexcept
-  : data_(std::move(rhs.data_)), type_(rhs.type_) {
+entry::entry(entry&& rhs) noexcept : data_{std::move(rhs.data_)} {
   move_union(std::move(rhs));
 }
 
 entry& entry::operator=(entry&& rhs) noexcept {
   if (this != &rhs) {
     data_ = std::move(rhs.data_);
-    type_ = rhs.type_;
     destroy();
     move_union(std::move(rhs));
   }
@@ -314,18 +312,19 @@ entry& entry::operator=(entry&& rhs) noexcept {
 }
 
 void entry::move_union(entry&& rhs) noexcept {
-  switch (rhs.type_) {
+  type_ = rhs.type_;
+  switch (type_) {
     case ET_TERM:
       mem_.construct<irs::postings_writer::state>(std::move(rhs.term()));
+      rhs.mem_.destroy<irs::postings_writer::state>();
       break;
     case ET_BLOCK:
       mem_.construct<block_t>(std::move(rhs.block()));
+      rhs.mem_.destroy<block_t>();
       break;
     default:
       break;
   }
-
-  // prevent deletion
   rhs.type_ = ET_INVALID;
 }
 
@@ -340,6 +339,7 @@ void entry::destroy() noexcept {
     default:
       break;
   }
+  type_ = ET_INVALID;
 }
 
 entry::~entry() noexcept { destroy(); }
@@ -3489,7 +3489,6 @@ class dumper : util::noncopyable {
   size_t indent_ = 0;
   size_t prefix_ = 0;
 };
-
 }  // namespace
 
 namespace irs {

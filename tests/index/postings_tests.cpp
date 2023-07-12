@@ -403,8 +403,16 @@ TEST(postings_tests, slice_alignment) {
     byte_block_pool::inserter writer(begin);
     postings bh(writer);
 
-    ASSERT_TRUE(bh.empty());
-    ASSERT_EQ(0, bh.size());
+    // add initial block
+    pool->alloc_buffer();
+    auto mem = memory.counter_;
+    ASSERT_GT(mem, 0);
+    // read_write on new block pool
+    {
+      // seek to the 1 item before the end of the first block
+      auto begin = pool->seek(block_size - 1);  // begin of the slice chain
+      byte_block_pool::inserter writer(begin);
+      postings bh(writer);
 
     [[maybe_unused]] auto res =
       bh.emplace(tests::detail::to_bytes_view("string0"));
@@ -437,4 +445,5 @@ TEST(postings_tests, slice_alignment) {
               (*sorted_postings.begin())->term);
     ASSERT_EQ(mem, memory.counter_);
   }
+  ASSERT_EQ(0, memory.counter_);
 }
