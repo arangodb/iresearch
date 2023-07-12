@@ -533,9 +533,7 @@ index_output::ptr FSDirectory::create(std::string_view name) noexcept {
   return nullptr;
 }
 
-const std::filesystem::path& FSDirectory::directory() const noexcept {
-  return dir_;
-}
+const std::filesystem::path& FSDirectory::path() const noexcept { return dir_; }
 
 bool FSDirectory::exists(bool& result, std::string_view name) const noexcept {
   const auto path = dir_ / name;
@@ -578,7 +576,7 @@ index_input::ptr FSDirectory::open(std::string_view name,
     const auto path = dir_ / name;
 
     return fs_index_input::open(path.c_str(), fd_pool_size_, advice,
-                                resource_manager_);
+                                ResourceManager());
   } catch (...) {
   }
 

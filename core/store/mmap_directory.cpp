@@ -190,7 +190,7 @@ index_input::ptr MMapDirectory::open(std::string_view name,
   }
 
   auto handle =
-    OpenHandle(directory(), name, advice, *resource_manager_.file_descriptors);
+    OpenHandle(path(), name, advice, *ResourceManager().file_descriptors);
 
   if (!handle) {
     return nullptr;
@@ -243,7 +243,7 @@ index_input::ptr CachingMMapDirectory::open(std::string_view name,
   }
 
   handle =
-    OpenHandle(directory(), name, advice, *resource_manager_.file_descriptors);
+    OpenHandle(path(), name, advice, *ResourceManager().file_descriptors);
   if (handle) {
     cache_.Put(name, [&]() noexcept { return handle; });
 

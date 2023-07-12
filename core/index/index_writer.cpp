@@ -1222,11 +1222,6 @@ IndexWriter::ptr IndexWriter::Make(directory& dir, format::ptr codec,
   IRS_ASSERT(std::all_of(options.reader_options.scorers.begin(),
                          options.reader_options.scorers.end(),
                          [](const auto* v) { return v != nullptr; }));
-  IRS_ASSERT(options.reader_options.resource_manager.cached_columns);
-  IRS_ASSERT(options.reader_options.resource_manager.consolidations);
-  IRS_ASSERT(options.reader_options.resource_manager.file_descriptors);
-  IRS_ASSERT(options.reader_options.resource_manager.readers);
-  IRS_ASSERT(options.reader_options.resource_manager.transactions);
   index_lock::ptr lock;
   index_file_refs::ref_t lock_ref;
 

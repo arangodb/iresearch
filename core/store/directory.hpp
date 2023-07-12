@@ -168,7 +168,13 @@ struct directory : private util::noncopyable {
 
   explicit directory(const ResourceManagementOptions& resource_manager =
                        ResourceManagementOptions::kDefault) noexcept
-    : resource_manager_{resource_manager} {}
+    : resource_manager_{resource_manager} {
+    IRS_ASSERT(resource_manager_.cached_columns);
+    IRS_ASSERT(resource_manager_.consolidations);
+    IRS_ASSERT(resource_manager_.file_descriptors);
+    IRS_ASSERT(resource_manager_.readers);
+    IRS_ASSERT(resource_manager_.transactions);
+  }
 
   const ResourceManagementOptions& ResourceManager() const noexcept {
     return resource_manager_;
