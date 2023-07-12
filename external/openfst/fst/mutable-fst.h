@@ -53,20 +53,6 @@ struct has_alloc : decltype(has_alloc_helper<T>(0)) {};
 
 }  // namespace
 
-namespace detail {
-
-template<typename T>
-std::enable_if_t<!std::is_void_v<decltype(std::declval<T>().GetAlloc())>,
-                 std::true_type>
-has_alloc_helper(int);
-
-template<typename>
-std::false_type has_alloc_helper(...);
-
-template<typename T>
-struct has_alloc : decltype(has_alloc_helper<T>(0)) {};
-}  // namespace
-
 template <class Arc>
 struct MutableArcIteratorData;
 

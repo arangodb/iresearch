@@ -74,8 +74,7 @@ class MergeWriter : public util::noncopyable {
   void Reset(Iterator begin, Iterator end) {
     readers_.reserve(readers_.size() + std::distance(begin, end));
     while (begin != end) {
-      readers_.emplace_back(*begin++,
-                            readers_.get_allocator().ResourceManager());
+      readers_.emplace_back(*begin++, readers_.get_allocator().Manager());
     }
   }
 

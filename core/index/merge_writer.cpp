@@ -1629,7 +1629,7 @@ bool MergeWriter::FlushUnsorted(TrackingDirectory& dir, SegmentMeta& segment,
     return false;  // progress callback requested termination
   }
 
-  BufferedColumns buffered_columns{readers_.get_allocator().ResourceManager()};
+  BufferedColumns buffered_columns{readers_.get_allocator().Manager()};
 
   const flush_state state{.dir = &dir,
                           .columns = &buffered_columns,

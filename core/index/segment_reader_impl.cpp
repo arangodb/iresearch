@@ -191,7 +191,7 @@ std::shared_ptr<const SegmentReaderImpl> SegmentReaderImpl::ReopenColumnStore(
   const IndexReaderOptions& options) const {
   IRS_ASSERT(meta == info_);
   auto reader = std::make_shared<SegmentReaderImpl>(
-    PrivateTag{}, docs_mask_.get_allocator().ResourceManager());
+    PrivateTag{}, docs_mask_.get_allocator().Manager());
   // clone removals
   reader->refs_ = refs_;
   reader->info_ = info_;
@@ -208,7 +208,7 @@ std::shared_ptr<const SegmentReaderImpl> SegmentReaderImpl::ReopenDocsMask(
   const directory& dir, const SegmentMeta& meta,
   DocumentMask&& docs_mask) const {
   auto reader = std::make_shared<SegmentReaderImpl>(
-    PrivateTag{}, docs_mask_.get_allocator().ResourceManager());
+    PrivateTag{}, docs_mask_.get_allocator().Manager());
   // clone field reader
   reader->field_reader_ = field_reader_;
   // clone column store
