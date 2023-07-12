@@ -1264,7 +1264,7 @@ class BufferedValues final : public column_reader, data_output {
   }
 
   BufferedColumn::BufferedValues index_;
-  BufferedColumn::BufferedData data_;
+  BufferedColumn::Buffer data_;
   field_id id_{field_limits::invalid()};
   std::optional<bstring> header_;
   data_output* out_{};
