@@ -163,9 +163,9 @@ std::shared_ptr<const SegmentReaderImpl> SegmentReaderImpl::Open(
   const directory& dir, const SegmentMeta& meta,
   const IndexReaderOptions& options) {
   auto reader = std::make_shared<SegmentReaderImpl>(
-    PrivateTag{}, *options.resource_manager.readers);
+    PrivateTag{}, *dir.ResourceManager().readers);
   // read optional docs_mask
-  DocumentMask docs_mask{{*options.resource_manager.readers}};
+  DocumentMask docs_mask{{*dir.ResourceManager().readers}};
   if (options.doc_mask) {
     index_utils::ReadDocumentMask(docs_mask, dir, meta);
   }
@@ -174,7 +174,7 @@ std::shared_ptr<const SegmentReaderImpl> SegmentReaderImpl::Open(
   IRS_ASSERT(meta.codec != nullptr);
   // always instantiate to avoid unnecessary checks
   reader->field_reader_ =
-    meta.codec->get_field_reader(*options.resource_manager.readers);
+    meta.codec->get_field_reader(*dir.ResourceManager().readers);
   if (options.index) {
     reader->field_reader_->prepare(
       ReaderState{.dir = &dir, .meta = &meta, .scorers = options.scorers});
@@ -304,8 +304,7 @@ const irs::column_reader* SegmentReaderImpl::ColumnData::Open(
   }
 
   // initialize optional columnstore
-  columnstore_reader::options columnstore_opts{.resource_manager =
-                                                 options.resource_manager};
+  columnstore_reader::options columnstore_opts;
   if (options.warmup_columns) {
     columnstore_opts.warmup_column = [warmup = options.warmup_columns,
                                       &field_reader,

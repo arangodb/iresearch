@@ -165,6 +165,17 @@ struct directory : private util::noncopyable {
   const directory_attributes& attributes() const noexcept {
     return const_cast<directory*>(this)->attributes();
   }
+
+  explicit directory(const ResourceManagementOptions& resource_manager =
+                       ResourceManagementOptions::kDefault) noexcept
+    : resource_manager_{resource_manager} {}
+
+  const ResourceManagementOptions& ResourceManager() const noexcept {
+    return resource_manager_;
+  }
+
+ private:
+  ResourceManagementOptions resource_manager_;
 };
 
 }  // namespace irs

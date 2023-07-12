@@ -367,8 +367,6 @@ struct columnstore_reader {
   struct options {
     // allows to select "hot" columns
     column_visitor_f warmup_column;
-    // memory usage accounting
-    ResourceManagementOptions resource_manager;
   };
 
   virtual ~columnstore_reader() = default;

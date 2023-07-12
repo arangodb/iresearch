@@ -511,7 +511,7 @@ fs_index_input::file_handle::ptr pooled_fs_index_input::reopen(
 FSDirectory::FSDirectory(std::filesystem::path dir, directory_attributes attrs,
                          const ResourceManagementOptions& rm,
                          size_t fd_pool_size)
-  : resource_manager_{rm},
+  : directory{rm},
     attrs_{std::move(attrs)},
     dir_{std::move(dir)},
     fd_pool_size_{fd_pool_size} {}
@@ -520,7 +520,7 @@ index_output::ptr FSDirectory::create(std::string_view name) noexcept {
   try {
     const auto path = dir_ / name;
 
-    auto out = fs_index_output::open(path.c_str(), resource_manager_);
+    auto out = fs_index_output::open(path.c_str(), ResourceManager());
 
     if (!out) {
       IRS_LOG_ERROR(absl::StrCat("Failed to open output file, path: ", name));

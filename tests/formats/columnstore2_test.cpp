@@ -74,7 +74,7 @@ class columnstore2_test_case
 
   irs::columnstore_reader::options reader_options(
     TestResourceManager& mng = kDummy) {
-    irs::columnstore_reader::options options{.resource_manager{mng.options}};
+    irs::columnstore_reader::options options;
     options.warmup_column = [this](const irs::column_reader&) {
       return this->buffered();
     };

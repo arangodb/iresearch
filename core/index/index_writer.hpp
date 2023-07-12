@@ -576,8 +576,7 @@ class IndexWriter : private util::noncopyable {
               const ColumnInfoProvider& column_info,
               const FeatureInfoProvider& feature_info,
               const PayloadProvider& meta_payload_provider,
-              std::shared_ptr<const DirectoryReaderImpl>&& committed_reader,
-              const ResourceManagementOptions& rm);
+              std::shared_ptr<const DirectoryReaderImpl>&& committed_reader);
 
  private:
   struct ConsolidationContext : util::noncopyable {
@@ -977,7 +976,6 @@ class IndexWriter : private util::noncopyable {
   index_meta_writer::ptr writer_;
   index_lock::ptr write_lock_;  // exclusive write lock for directory
   index_file_refs::ref_t write_lock_file_ref_;  // file ref for lock file
-  ResourceManagementOptions resource_manager_;
 };
 
 }  // namespace irs

@@ -1823,8 +1823,8 @@ void reader::prepare_index(const directory& dir, const SegmentMeta& meta,
     if (const size_t idx = static_cast<size_t>(hdr.type);
         IRS_LIKELY(idx < std::size(kFactories))) {
       auto column = kFactories[idx](
-        std::move(name), *opts.resource_manager.readers,
-        *opts.resource_manager.cached_columns, std::move(payload),
+        std::move(name), *dir.ResourceManager().readers,
+        *dir.ResourceManager().cached_columns, std::move(payload),
         std::move(hdr), std::move(index), *index_in, *data_in_,
         std::move(inflater), data_cipher_.get());
       IRS_ASSERT(column);
