@@ -398,11 +398,7 @@ TEST_P(SortedIndexTestCase, simple_sequential) {
 
     if (dynamic_cast<irs::memory_directory*>(&dir()) == nullptr) {
       auto name = codec()->type()().name();
-      if (name.starts_with("1_4") || name.starts_with("1_5")) {
-        EXPECT_EQ(GetResourceManager().file_descriptors.counter_, 5) << name;
-      } else {
-        EXPECT_EQ(GetResourceManager().file_descriptors.counter_, 4) << name;
-      }
+      EXPECT_EQ(GetResourceManager().file_descriptors.counter_, 5) << name;
     }
     auto mapped_memory = reader->CountMappedMemory();
 #ifdef __linux__
