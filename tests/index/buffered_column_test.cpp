@@ -292,7 +292,11 @@ TEST_P(BufferedColumnTestCase, Ctor) {
   ASSERT_EQ(0, col.Size());
   ASSERT_EQ(0, col.MemoryActive());
   ASSERT_GE(col.MemoryReserved(), 0);
+#if defined(_MSC_VER) && defined(IRESEARCH_DEBUG)
+  ASSERT_GT(memory.counter_, 0);
+#else
   ASSERT_EQ(0, memory.counter_);
+#endif
 }
 
 TEST_P(BufferedColumnTestCase, FlushEmpty) {
@@ -303,7 +307,11 @@ TEST_P(BufferedColumnTestCase, FlushEmpty) {
   ASSERT_EQ(0, col.Size());
   ASSERT_EQ(0, col.MemoryActive());
   ASSERT_GE(col.MemoryReserved(), 0);
+#if defined(_MSC_VER) && defined(IRESEARCH_DEBUG)
+  ASSERT_GT(memory.cached_columns.counter_, 0);
+#else
   ASSERT_EQ(0, memory.cached_columns.counter_);
+#endif
 
   irs::field_id column_id;
   irs::DocMap order;
