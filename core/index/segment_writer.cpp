@@ -171,7 +171,7 @@ segment_writer::segment_writer(ConstructToken, directory& dir,
     columns_{{options.resource_manager}},
     column_info_{&options.column_info},
     dir_{dir} {
-  docs_mask_.set = {{options.resource_manager}};
+  docs_mask_.set = decltype(docs_mask_.set){{options.resource_manager}};
 }
 
 bool segment_writer::index(const hashed_string_view& name, const doc_id_t doc,
