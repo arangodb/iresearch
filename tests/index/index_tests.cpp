@@ -16929,7 +16929,7 @@ TEST_P(index_test_case_11, testExternalGenerationDifferentStart) {
   writer.reset();
   auto reader = irs::DirectoryReader(directory);
   if (dynamic_cast<irs::memory_directory*>(&directory) == nullptr) {
-    EXPECT_EQ(GetResourceManager().file_descriptors.counter_, 3);
+    EXPECT_EQ(GetResourceManager().file_descriptors.counter_, 4);
   }
   auto mapped_memory = reader.CountMappedMemory();
 #ifdef __linux__
