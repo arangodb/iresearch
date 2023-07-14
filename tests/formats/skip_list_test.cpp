@@ -161,8 +161,8 @@ TEST_F(SkipWriterTest, Prepare) {
 #endif
   }
   ASSERT_EQ(0, memory.counter_);
-  // less than max levels
   int64_t memoryAlmostFull{0};
+  // less than max levels
   {
     const size_t doc_count = 1923;
     const size_t skip = 8;
