@@ -828,7 +828,7 @@ class field_writer final : public irs::field_writer {
   static constexpr std::string_view TERMS_INDEX_EXT = "ti";
 
   field_writer(irs::postings_writer::ptr&& pw, bool consolidation,
-               IResourceManager& resource_manager,
+               IResourceManager& rm,
                burst_trie::Version version = burst_trie::Version::MAX,
                uint32_t min_block_size = DEFAULT_MIN_BLOCK_SIZE,
                uint32_t max_block_size = DEFAULT_MAX_BLOCK_SIZE);
@@ -1088,8 +1088,7 @@ void field_writer::Push(bytes_view term) {
 }
 
 field_writer::field_writer(
-  irs::postings_writer::ptr&& pw, bool consolidation,
-  IResourceManager& resource_manager,
+  irs::postings_writer::ptr&& pw, bool consolidation, IResourceManager& rm,
   burst_trie::Version version /* = Format::MAX */,
   uint32_t min_block_size /* = DEFAULT_MIN_BLOCK_SIZE */,
   uint32_t max_block_size /* = DEFAULT_MAX_BLOCK_SIZE */)
@@ -1097,12 +1096,12 @@ field_writer::field_writer(
 #ifdef __cpp_lib_memory_resource
     block_index_buf_{sizeof(block_t::prefixed_output) * 32},
 #endif
-    blocks_{ManagedTypedAllocator<entry>{resource_manager}},
-    suffix_{resource_manager},
-    stats_{resource_manager},
+    blocks_{ManagedTypedAllocator<entry>{rm}},
+    suffix_{rm},
+    stats_{rm},
     pw_{std::move(pw)},
-    stack_{ManagedTypedAllocator<entry>{resource_manager}},
-    fst_buf_{new fst_buffer{resource_manager}},
+    stack_{ManagedTypedAllocator<entry>{rm}},
+    fst_buf_{new fst_buffer{rm}},
     prefixes_(DEFAULT_SIZE, 0),
     version_(version),
     min_block_size_(min_block_size),

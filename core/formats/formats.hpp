@@ -79,6 +79,7 @@ struct SegmentWriterOptions {
   const std::set<irs::type_info::type_id>& scorers_features;
   ScorersView scorers;
   const Comparer* const comparator{};
+  // TODO(MBkkt) Remove it from here? We could use directory
   IResourceManager& resource_manager{IResourceManager::kNoop};
 };
 

@@ -80,15 +80,14 @@ struct ManagedTypedAllocator
   : ManagedAllocator<IResourceManager, std::allocator<T>> {
   using Base = ManagedAllocator<IResourceManager, std::allocator<T>>;
 
-  explicit ManagedTypedAllocator()
-    : Base{
-#ifdef IRESEARCH_DEBUG
-        IResourceManager::kForbidden
+  explicit ManagedTypedAllocator() : Base {
+#if !defined(_MSC_VER) && defined(IRESEARCH_DEBUG)
+    IResourceManager::kForbidden
 #else
-        IResourceManager::kNoop
+    IResourceManager::kNoop
 #endif
-      } {
   }
+  {}
 
   using Base::Base;
 };

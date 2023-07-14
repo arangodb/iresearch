@@ -38,7 +38,9 @@
 #include <string_view>
 
 namespace fst {
+
 namespace detail {
+
 template<typename T>
 std::enable_if_t<!std::is_void_v<decltype(std::declval<T>().GetAlloc())>,
                  std::true_type>
