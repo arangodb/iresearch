@@ -173,8 +173,9 @@ class VectorFstBaseImpl : public FstImpl<typename S::Arc> {
   using StateId = typename Arc::StateId;
   using Weight = typename Arc::Weight;
 
-  VectorFstBaseImpl(const typename State::ArcAllocator &alloc = {})
-    : start_{kNoStateId}, state_alloc_{alloc}, arc_alloc_{alloc} {}
+  VectorFstBaseImpl(
+    const typename State::ArcAllocator &alloc = {})
+    : start_(kNoStateId), state_alloc_(alloc), arc_alloc_(alloc) {}
 
   ~VectorFstBaseImpl() override {
     for (auto *state : states_) State::Destroy(state, &state_alloc_);
@@ -330,7 +331,7 @@ class VectorFstBaseImpl : public FstImpl<typename S::Arc> {
     data->ref_count = nullptr;
   }
 
-  const typename State::ArcAllocator &GetAlloc() const noexcept {
+  const typename State::ArcAllocator& GetAlloc() const noexcept {
     return arc_alloc_;
   }
 
@@ -369,17 +370,20 @@ class VectorFstImpl : public VectorFstBaseImpl<S> {
 
   using BaseImpl = VectorFstBaseImpl<S>;
 
+  
   VectorFstImpl(const typename State::ArcAllocator &alloc = {})
-    : BaseImpl{alloc} {
+    : BaseImpl(alloc) {
     SetType("vector");
     SetProperties(kNullProperties | kStaticProperties);
   }
 
-  explicit VectorFstImpl(const Fst<Arc> &fst,
-                         const typename State::ArcAllocator &alloc = {});
+  explicit VectorFstImpl(
+    const Fst<Arc> &fst,
+    const typename State::ArcAllocator &alloc = {});
 
-  static VectorFstImpl *Read(std::istream &strm, const FstReadOptions &opts,
-                             const typename State::ArcAllocator &alloc = {});
+  static VectorFstImpl *Read(
+    std::istream &strm, const FstReadOptions &opts,
+    const typename State::ArcAllocator &alloc = {});
 
   void SetStart(StateId state) {
     BaseImpl::SetStart(state);
@@ -461,9 +465,10 @@ class VectorFstImpl : public VectorFstBaseImpl<S> {
 };
 
 template <class S>
-VectorFstImpl<S>::VectorFstImpl(const Fst<Arc> &fst,
-                                const typename State::ArcAllocator &alloc)
-  : BaseImpl{alloc} {
+VectorFstImpl<S>::VectorFstImpl(
+  const Fst<Arc> &fst,
+  const typename State::ArcAllocator &alloc)
+  : BaseImpl(alloc) {
   SetType("vector");
   SetInputSymbols(fst.InputSymbols());
   SetOutputSymbols(fst.OutputSymbols());
@@ -485,9 +490,9 @@ VectorFstImpl<S>::VectorFstImpl(const Fst<Arc> &fst,
 }
 
 template <class S>
-VectorFstImpl<S> *VectorFstImpl<S>::Read(
-  std::istream &strm, const FstReadOptions &opts,
-  const typename State::ArcAllocator &alloc) {
+VectorFstImpl<S> *VectorFstImpl<S>::Read(std::istream &strm,
+                                         const FstReadOptions &opts,
+                                         const typename State::ArcAllocator &alloc) {
   auto impl = std::make_unique<VectorFstImpl>(alloc);
   FstHeader hdr;
   if (!impl->ReadHeader(strm, opts, kMinFileVersion, &hdr)) return nullptr;
