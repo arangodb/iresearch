@@ -349,7 +349,6 @@ TEST_P(BufferedColumnTestCase, FlushEmpty) {
       .dir = &dir, .name = segment.name, .doc_count = 0};
 
     ASSERT_FALSE(writer->commit(state));  // nothing to commit
-    ASSERT_EQ(0, memory.transactions.counter_);
   }
   ASSERT_EQ(0, memory.transactions.counter_);
   // read sorted column
@@ -413,7 +412,12 @@ TEST_P(BufferedColumnTestCase, InsertDuplicates) {
 
     ASSERT_GE(col.MemoryActive(), 0);
     ASSERT_GE(col.MemoryReserved(), 0);
-    ASSERT_GE(memory.cached_columns.counter_, col.MemoryReserved());
+    // SSO should do the trick without allocations
+#if defined(_MSC_VER) && defined(IRESEARCH_DEBUG)
+    ASSERT_GT(memory.cached_columns.counter_, 0);
+#else
+    ASSERT_EQ(0, memory.cached_columns.counter_);
+#endif
 
     std::tie(order, column_id) = col.Flush(
       *writer,
@@ -466,14 +470,13 @@ TEST_P(BufferedColumnTestCase, Sort) {
   TestResourceManager memory;
   // write sorted column
   {
-    auto writer =
-      codec->get_columnstore_writer(false, irs::IResourceManager::kNoop);
+    auto writer = codec->get_columnstore_writer(false, memory.transactions);
     ASSERT_NE(nullptr, writer);
 
     writer->prepare(dir, segment);
 
     irs::BufferedColumn col({irs::type<irs::compression::lz4>::get(), {}, true},
-                            irs::IResourceManager::kNoop);
+                            memory.cached_columns);
     ASSERT_TRUE(col.Empty());
     ASSERT_EQ(0, col.Size());
     ASSERT_EQ(0, col.MemoryActive());

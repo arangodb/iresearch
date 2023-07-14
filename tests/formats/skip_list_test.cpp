@@ -142,7 +142,6 @@ TEST_F(SkipWriterTest, Prepare) {
 #endif
   }
   ASSERT_EQ(0, memory.counter_);
-  int64_t memory1;
   {
     const size_t max_levels = 0;
     const size_t doc_count = 17;
@@ -154,10 +153,16 @@ TEST_F(SkipWriterTest, Prepare) {
     ASSERT_EQ(skip_0, writer.Skip0());
     ASSERT_EQ(skip_n, writer.SkipN());
     ASSERT_EQ(0, writer.MaxLevels());
-    ASSERT_GT(memory.counter_, memory1);
+#if defined(_MSC_VER) && defined(IRESEARCH_DEBUG)
+    // MSVC allocates some blocks even for empty containers
+    ASSERT_GT(memory.counter_, 0);
+#else
+    ASSERT_EQ(0, memory.counter_);
+#endif
   }
   ASSERT_EQ(0, memory.counter_);
   // less than max levels
+  int64_t memoryAlmostFull{0};
   {
     const size_t doc_count = 1923;
     const size_t skip = 8;
@@ -169,7 +174,7 @@ TEST_F(SkipWriterTest, Prepare) {
     ASSERT_EQ(skip, writer.SkipN());
     ASSERT_EQ(3, writer.MaxLevels());
     ASSERT_GT(memory.counter_, 0);
-    memory1 = memory.counter_;
+    memoryAlmostFull = memory.counter_;
   }
   ASSERT_EQ(0, memory.counter_);
   // more than max levels
@@ -193,7 +198,7 @@ TEST_F(SkipWriterTest, Prepare) {
     ASSERT_EQ(skip, writer.Skip0());
     ASSERT_EQ(skip, writer.SkipN());
     ASSERT_EQ(0, writer.MaxLevels());
-    ASSERT_GT(memory.counter_, memory1);
+    ASSERT_GT(memory.counter_, memoryAlmostFull);
   }
   ASSERT_EQ(0, memory.counter_);
 }
