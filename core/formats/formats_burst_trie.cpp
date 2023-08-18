@@ -263,16 +263,6 @@ struct block_t : private util::noncopyable {
       label(rhs.label),
       meta(rhs.meta) {}
 
-  block_t& operator=(block_t&& rhs) noexcept {
-    if (this != &rhs) {
-      index = std::move(rhs.index);
-      start = rhs.start;
-      label = rhs.label;
-      meta = rhs.meta;
-    }
-    return *this;
-  }
-
   ~block_t() {
     index.Visit([](prefixed_output& output) {  //
       output.~prefixed_output();
@@ -399,10 +389,6 @@ class entry : private util::noncopyable {
   entry(entry&& rhs) noexcept;
   entry& operator=(entry&& rhs) noexcept;
   ~entry() noexcept;
-
-  const version10::term_meta& term() const noexcept {
-    return *mem_.as<version10::term_meta>();
-  }
 
   version10::term_meta& term() noexcept {
     return *mem_.as<version10::term_meta>();
@@ -1635,7 +1621,6 @@ class block_iterator : util::noncopyable {
     // assume such blocks have terms
     return sub_count_ != UNDEFINED_COUNT && !block_meta::terms(meta());
   }
-  uint64_t size() const noexcept { return ent_count_; }
 
   template<typename Reader>
   SeekResult scan_to_term(bytes_view term, Reader&& reader) {
@@ -2176,8 +2161,6 @@ class term_iterator_base : public seek_term_iterator {
     return std::get<term_attribute>(attrs_).value;
   }
 
-  index_input& terms_input() const;
-
   irs::encryption::stream* terms_cipher() const noexcept {
     return terms_cipher_;
   }
@@ -2212,8 +2195,6 @@ class term_iterator_base : public seek_term_iterator {
     std::get<term_attribute>(attrs_).value = term_buf_;
   }
   void reset_value() noexcept { std::get<term_attribute>(attrs_).value = {}; }
-
-  const field_meta& field() const noexcept { return field_->meta(); }
 
   mutable attributes attrs_;
   const term_reader_base* field_;

@@ -76,12 +76,6 @@ struct GetVisitor {
         return by_range::visit(segment, field, *range, visitor);
       };
   }
-
-  template<typename T>
-  result_type operator()(const T&) const {
-    IRS_ASSERT(false);
-    return [](const SubReader&, const term_reader&, filter_visitor&) {};
-  }
 };
 
 struct Prepare : util::noncopyable {
@@ -112,12 +106,6 @@ struct Prepare : util::noncopyable {
 
   result_type operator()(const by_range_options& part) const {
     return by_range::prepare(ctx, field, part.range, part.scored_terms_limit);
-  }
-
-  template<typename T>
-  result_type operator()(const T&) const {
-    IRS_ASSERT(false);
-    return filter::prepared::empty();
   }
 
   Prepare(const PrepareContext& ctx, std::string_view field) noexcept
