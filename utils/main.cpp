@@ -116,8 +116,9 @@ int main(int argc, char* argv[]) {
     std::sort(output.begin(), output.end());
     for (auto& [key, count, time_us] : output) {
       std::cout << key << " calls:" << count << ", time: " << time_us
-                << " us, avg call: " << time_us / double(count) << " us"
-                << std::endl;
+                << " us, avg call: "
+                << static_cast<double>(time_us) / static_cast<double>(count)
+                << " us" << std::endl;
     }
   };
 

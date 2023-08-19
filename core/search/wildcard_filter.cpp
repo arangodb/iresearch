@@ -85,9 +85,6 @@ auto executeWildcard(bstring& buf, bytes_view term, Invalid&& inv, Term&& t,
     }
     case WildcardType::WILDCARD:
       return w(term);
-    default:
-      IRS_ASSERT(false);
-      return inv();
   }
 }
 

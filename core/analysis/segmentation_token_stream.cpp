@@ -276,9 +276,6 @@ bool accept_token(Iterator begin, Iterator end, word_break_t wb) {
              end;
     case word_break_t::ALPHA:
       return std::find_if(begin, end, utf8_utils::char_is_alphanumeric) != end;
-    default:
-      IRS_ASSERT(false);
-      return false;
   }
 }
 

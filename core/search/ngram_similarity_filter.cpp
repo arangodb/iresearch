@@ -42,7 +42,8 @@ filter::prepared::ptr by_ngram_similarity::prepare(
 
   const auto threshold = std::clamp(options().threshold, 0.f, 1.f);
   const auto min_match_count =
-    std::clamp(static_cast<size_t>(std::ceil(ngrams.size() * threshold)),
+    std::clamp(static_cast<size_t>(
+                 std::ceil(static_cast<float>(ngrams.size()) * threshold)),
                size_t{1}, ngrams.size());
   const auto sub_boost = ctx.boost * boost();
   if (ctx.scorers.empty() && 1 == min_match_count) {

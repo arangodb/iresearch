@@ -202,11 +202,11 @@ class parametric_description {
  private:
   std::vector<transition_t> transitions_;  // transition table
   std::vector<byte_type> distance_;        // distances per state and offset
-  uint64_t chi_size_{};                    // 2*max_distance_+1
+  uint32_t chi_size_{};                    // 2*max_distance_+1
   uint64_t chi_max_{};                     // 1 << chi_size
   size_t num_states_{};                    // number of parametric states
   byte_type max_distance_{};               // max allowed distance
-};                                         // parametric_description
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief builds parametric description of Levenshtein automaton

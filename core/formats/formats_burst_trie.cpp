@@ -932,7 +932,7 @@ class fst_buffer : public vector_byte_fst {
   };
 
   fst_buffer(IResourceManager& rm)
-    : vector_byte_fst(ManagedTypedAllocator<byte_arc>(rm)){};
+    : vector_byte_fst(ManagedTypedAllocator<byte_arc>(rm)) {}
 
   using fst_byte_builder = fst_builder<byte_type, vector_byte_fst, fst_stats>;
 
@@ -1527,7 +1527,8 @@ void term_reader_base::prepare(burst_trie::Version version, index_input& in,
   max_term_ = read_string<bstring>(in);
 
   if (IndexFeatures::NONE != (field_.index_features & IndexFeatures::FREQ)) {
-    freq_.value = in.read_vlong();
+    // TODO(MBkkt) for what reason we store uint64_t if we read to uint32_t
+    freq_.value = static_cast<uint32_t>(in.read_vlong());
   }
 
   if (IRS_LIKELY(version >= burst_trie::Version::WAND)) {
