@@ -655,45 +655,19 @@ uint64_t LimitTick(uint64_t tick, uint64_t def) noexcept {
 
 }  // namespace
 
-IndexWriter::ActiveSegmentContext::ActiveSegmentContext(
-  std::shared_ptr<SegmentContext> segment, std::atomic_size_t& segments_active,
-  FlushContext* flush, PendingSegmentContext* pending) noexcept
-  : segment_{std::move(segment)},
-    segments_active_{&segments_active},
-    flush_{flush},
-    pending_{pending} {
-  IRS_ASSERT(segment_ != nullptr);
-}
-
-IndexWriter::ActiveSegmentContext::~ActiveSegmentContext() {
-  if (segments_active_ == nullptr) {
-    IRS_ASSERT(segment_ == nullptr);
-    IRS_ASSERT(flush_ == nullptr);
+void IndexWriter::ActiveSegmentContext::Destroy() noexcept {
+  if (segment_ == nullptr) {
     return;
   }
-  segment_.reset();
-  segments_active_->fetch_sub(1, std::memory_order_relaxed);
-  if (flush_ != nullptr) {
-    flush_->pending_.Done();
+  IRS_ASSERT(writer_);
+  if (flush_) {
+    flush_->pending_.Release(*segment_);
+  } else {
+    writer_->created_.Release(*segment_);
   }
-}
-
-IndexWriter::ActiveSegmentContext::ActiveSegmentContext(
-  ActiveSegmentContext&& other) noexcept
-  : segment_{std::move(other.segment_)},
-    segments_active_{std::exchange(other.segments_active_, nullptr)},
-    flush_{std::exchange(other.flush_, nullptr)},
-    pending_{std::exchange(other.pending_, nullptr)} {}
-
-IndexWriter::ActiveSegmentContext& IndexWriter::ActiveSegmentContext::operator=(
-  ActiveSegmentContext&& other) noexcept {
-  if (this != &other) {
-    std::swap(segment_, other.segment_);
-    std::swap(segments_active_, other.segments_active_);
-    std::swap(flush_, other.flush_);
-    std::swap(pending_, other.pending_);
-  }
-  return *this;
+  segment_ = nullptr;
+  flush_ = nullptr;
+  writer_->active_.fetch_sub(1, std::memory_order_relaxed);
 }
 
 IndexWriter::Document::Document(SegmentContext& segment,
@@ -702,8 +676,6 @@ IndexWriter::Document::Document(SegmentContext& segment,
   : writer_{*segment.writer_}, query_{query} {
   IRS_ASSERT(segment.writer_ != nullptr);
   writer_.begin(doc);  // ensure Reset() will be noexcept
-  segment.buffered_docs_.store(writer_.buffered_docs(),
-                               std::memory_order_relaxed);
 }
 
 IndexWriter::Document::~Document() noexcept {
@@ -720,55 +692,67 @@ IndexWriter::Document::~Document() noexcept {
 
 void IndexWriter::Transaction::Reset() noexcept {
   // TODO(MBkkt) rename Reset() to Rollback()
-  if (auto* segment = active_.Segment(); segment != nullptr) {
-    segment->Rollback();
+  if (segment_ != nullptr) {
+    segment_->Rollback();
   }
 }
 
 void IndexWriter::Transaction::RegisterFlush() {
-  if (active_.Segment() != nullptr && active_.Flush() == nullptr) {
-    writer_->GetFlushContext()->AddToPending(active_);
+  if (segment_ != nullptr && flush_ == nullptr) {
+    auto ctx = writer_->GetFlushContext();
+    ctx->pending_.Add();
+    flush_ = ctx.get();
   }
 }
 
-bool IndexWriter::Transaction::CommitImpl(uint64_t last_tick) noexcept try {
-  auto* segment = active_.Segment();
-  IRS_ASSERT(segment != nullptr);
-  segment->Commit(queries_, last_tick);
-  writer_->GetFlushContext()->Emplace(std::move(active_));
-  IRS_ASSERT(active_.Segment() == nullptr);
-  return true;
-} catch (...) {
-  IRS_ASSERT(active_.Segment() != nullptr);
-  // TODO(MBkkt) Use intrusive list to avoid possibility bad_alloc here
-  Abort();
-  return false;
+void IndexWriter::Transaction::CommitImpl(uint64_t last_tick) noexcept {
+  IRS_ASSERT(segment_ != nullptr);
+  segment_->Commit(Queries(), last_tick);
+  RegisterFlush();  // It's suboptimal for case when RegisterFlush not used
+  Destroy();
 }
 
 void IndexWriter::Transaction::Abort() noexcept {
-  auto* segment = active_.Segment();
-  if (segment == nullptr) {
-    return;  // nothing to do
+  if (flush_ != nullptr) {
+    IRS_ASSERT(segment_ != nullptr);
+    segment_->Rollback();
   }
-  if (active_.Flush() == nullptr) {
-    segment->Reset();  // reset before returning to pool
-    active_ = {};      // back to pool no needed Rollback
+  Destroy();
+}
+
+void IndexWriter::Transaction::LazyInit() try {
+  IRS_ASSERT(segment_ == nullptr);
+  while (writer_->active_.fetch_add(1, std::memory_order_relaxed) >=
+         writer_->segment_limits_.Count()) {
+    writer_->active_.fetch_sub(1, std::memory_order_relaxed);
+  }
+  if (auto flush = writer_->GetFlushContext();
+      (segment_ = flush->pending_.Acquire())) {
+    flush_ = flush.get();
     return;
   }
-  segment->Rollback();
-  // cannot throw because active_.Flush() not null
-  writer_->GetFlushContext()->Emplace(std::move(active_));
-  IRS_ASSERT(active_.Segment() == nullptr);
+  if ((segment_ = writer_->created_.Acquire())) {
+    return;
+  }
+  segment_ = new SegmentContext{writer_->dir_,
+                                [this] {
+                                  SegmentMeta meta{.codec = writer_->codec_};
+                                  meta.name =
+                                    file_name(writer_->NextSegmentId());
+                                  return meta;
+                                },
+                                writer_->GetSegmentWriterOptions(false)};
+} catch (...) {
+  writer_->active_.fetch_sub(1, std::memory_order_relaxed);
 }
 
 void IndexWriter::Transaction::UpdateSegment(bool disable_flush) {
   IRS_ASSERT(Valid());
-  while (active_.Segment() == nullptr) {  // lazy init
-    active_ = writer_->GetSegmentContext();
+  if (IRS_UNLIKELY(segment_ == nullptr)) {
+    LazyInit();
   }
 
-  auto& segment = *active_.Segment();
-  auto& writer = *segment.writer_;
+  auto& writer = *segment_->writer_;
 
   if (IRS_LIKELY(writer.initialized())) {
     if (disable_flush || !writer_->FlushRequired(writer)) {
@@ -778,79 +762,36 @@ void IndexWriter::Transaction::UpdateSegment(bool disable_flush) {
     IRS_LOG_TRACE(absl::StrCat(
       "Flushing segment '", writer.name(), "', docs=", writer.buffered_docs(),
       ", memory=", writer.memory_active(),
-      ", docs limit=", writer_->segment_limits_.segment_docs_max.load(),
-      ", memory limit=", writer_->segment_limits_.segment_memory_max.load()));
+      ", docs limit=", writer_->segment_limits_.Docs(),
+      ", memory limit=", writer_->segment_limits_.Memory()));
 
     try {
-      segment.Flush();
+      segment_->Flush();
     } catch (...) {
-      IRS_LOG_ERROR(absl::StrCat("while flushing segment '",
-                                 segment.writer_meta_.meta.name,
-                                 "', error: failed to flush segment"));
       // TODO(MBkkt) What the goal are we want to achieve
       //  with keeping already flushed data?
-      segment.Reset(true);
+      segment_->Reset(true);
+      IRS_LOG_ERROR(absl::StrCat("while flushing segment '",
+                                 segment_->writer_meta_.meta.name,
+                                 "', error: failed to flush segment"));
       throw;
     }
   }
-  segment.Prepare();
+  segment_->Prepare();
 }
 
 bool IndexWriter::FlushRequired(const segment_writer& segment) const noexcept {
   const auto& limits = segment_limits_;
-  const auto docs_max = limits.segment_docs_max.load();
-  const auto memory_max = limits.segment_memory_max.load();
-
   const auto docs = segment.buffered_docs();
   const auto memory = segment.memory_active();
-
-  return memory_max <= memory || docs_max <= docs;
-}
-
-void IndexWriter::FlushContext::Emplace(ActiveSegmentContext&& active) {
-  IRS_ASSERT(active.segment_ != nullptr);
-
-  if (active.segment_->first_tick_ == writer_limits::kMaxTick) {
-    // Reset all segment data because there wasn't successful transactions
-    active.segment_->Reset();
-    active = {};  // release
-    return;
-  }
-
-  auto* flush = active.flush_;
-  const bool is_null = flush == nullptr;
-  if (!is_null && flush != this) {
-    active = {};  // release
-    return;
-  }
-
-  auto* node = [&] {
-    if (is_null) {
-      std::lock_guard lock{pending_.Mutex()};
-      return &pending_segments_.emplace_back(std::move(active.segment_));
-    }
-    IRS_ASSERT(active.pending_ != nullptr);
-    return active.pending_;
-  }();
-  pending_freelist_.push(*node);
-  active = {};
-}
-
-void IndexWriter::FlushContext::AddToPending(ActiveSegmentContext& active) {
-  std::lock_guard lock{pending_.Mutex()};
-  IRS_ASSERT(active.segment_ != nullptr);
-  active.pending_ = &pending_segments_.emplace_back(active.segment_);
-  active.flush_ = this;
-  pending_.Add();
+  return limits.Memory() <= memory || limits.Docs() <= docs;
 }
 
 void IndexWriter::FlushContext::Reset() noexcept {
-  // reset before returning to pool
-  for (auto& segment : segments_) {
-    // use_count here isn't used for synchronization
-    if (segment.use_count() == 1) {
-      segment->Reset();
-    }
+  while (auto* node = pending_.segments.pop()) {
+    IRS_ASSERT(writer_ != nullptr);
+    auto& segment = static_cast<SegmentContext&>(*node);
+    writer_->created_.Release(segment);
   }
 
   imports_.clear();
@@ -858,12 +799,6 @@ void IndexWriter::FlushContext::Reset() noexcept {
   segments_.clear();
   segment_mask_.clear();
 
-  for (auto& entry : pending_segments_) {
-    if (auto& segment = entry.segment_; segment != nullptr) {
-      segment->Reset();
-    }
-  }
-  ClearPending();
   dir_->clear_refs();
 }
 
@@ -884,55 +819,41 @@ void IndexWriter::Cleanup(FlushContext& curr, FlushContext* next) noexcept {
   }
 }
 
-uint64_t IndexWriter::FlushContext::FlushPending(uint64_t committed_tick,
-                                                 uint64_t tick) {
-  // if tick is not equal uint64_max, as result of bad_alloc it's possible here
-  // that not all segments which should be committed by next FlushContext
-  // (fully or partially) will be moved to it.
-  // I consider it's ok, because in such situation you rely on tick,
-  // but you cannot assume anything about your IndexWriter::Transaction between
-  // last successfully committed tick and state before you understand that
-  // IndexWriter::Commit(tick) is failed in multi-threaded environment.
-  // Some Transactions after tick is initially in current FlushContext.
-  // Some Transactions after tick is initially in next FlushContext.
-  // From outside view you cannot distinct them!
-  // So even if I will make this moving deterministic it's not helpful at all.
-  // Also on practice such situation is almost impossible.
-  // Probably in future we can implement some out of sync logic for IndexWriter.
-  // But now it's unnecessary for our usage.
-
+void IndexWriter::FlushContext::MovePending(uint64_t committed_tick,
+                                            uint64_t tick) noexcept {
   IRS_ASSERT(next_ != nullptr);
   auto& next_segments = next_->segments_;
   IRS_ASSERT(next_segments.empty());
-  uint64_t flushed_tick = committed_tick;
-  for (auto& entry : pending_segments_) {
-    auto& segment = entry.segment_;
-    IRS_ASSERT(segment != nullptr);
-    const auto first_tick = segment->first_tick_;
-    const auto last_tick = segment->last_tick_;
-    if (first_tick <= tick) {
-      // This assert is really paranoid, it's not required just try to detect
-      // situation when we commit on tick but forgot to call RegisterFlush().
-      // This assert can work only if any transaction which committed after last
-      // Commit will has greater first tick than committed tick.
-      IRS_ASSERT(committed_tick < first_tick);
-      flushed_tick = std::max(flushed_tick, last_tick);
-      segment->Flush();
-      if (tick < last_tick) {
-        next_segments.push_back(segment);
-      }
-      segments_.push_back(std::move(segment));
+
+  Freelist new_pending;
+  MoveTo(new_pending);
+
+  // We can make reserve here for vectors, but I think it's unnecessary
+  // So it's noexcept
+
+  while (auto* node = pending_.segments.pop()) {
+    auto& segment = static_cast<SegmentContext&>(*node);
+    const auto first_tick = segment.first_tick_;
+    const auto last_tick = segment.last_tick_;
+    IRS_ASSERT(first_tick <= last_tick);
+    // This assert is really paranoid, it's not required just try to detect
+    // situation when we commit on tick but forgot to call RegisterFlush().
+    // This assert can work only if any transaction which committed after last
+    // Commit will has greater first tick than committed tick.
+    IRS_ASSERT(committed_tick < first_tick);
+    if (tick < first_tick) {
+      next_->pending_.segments.push(segment);
     } else {
-      std::unique_lock lock{next_->pending_.Mutex()};
-      auto& node = next_->pending_segments_.emplace_back(std::move(segment));
-      lock.unlock();
-      next_->pending_freelist_.push(node);
+      if (tick < last_tick) {
+        next_segments.push_back(&segment);
+      } else {
+        new_pending.push(segment);
+      }
+      segments_.push_back(&segment);
     }
-    IRS_ASSERT(entry.segment_ == nullptr);
   }
 
-  ClearPending();
-  return flushed_tick;
+  pending_.segments = std::move(new_pending);
 }
 
 IndexWriter::SegmentContext::SegmentContext(
@@ -983,13 +904,6 @@ void IndexWriter::SegmentContext::Flush() {
   committed_flushed_docs_ += committed_buffered_docs_;
 }
 
-IndexWriter::SegmentContext::ptr IndexWriter::SegmentContext::make(
-  directory& dir, segment_meta_generator_t&& meta_generator,
-  const SegmentWriterOptions& segment_writer_options) {
-  return std::make_unique<SegmentContext>(dir, std::move(meta_generator),
-                                          segment_writer_options);
-}
-
 void IndexWriter::SegmentContext::Prepare() {
   IRS_ASSERT(!writer_->initialized());
   writer_meta_.filename.clear();
@@ -998,8 +912,6 @@ void IndexWriter::SegmentContext::Prepare() {
 }
 
 void IndexWriter::SegmentContext::Reset(bool store_flushed) noexcept {
-  buffered_docs_.store(0, std::memory_order_relaxed);
-
   if (IRS_UNLIKELY(store_flushed)) {
     queries_.resize(flushed_queries_);
     committed_queries_ = std::min(committed_queries_, flushed_queries_);
@@ -1087,7 +999,8 @@ void IndexWriter::SegmentContext::Rollback() noexcept {
   committed_buffered_docs_ = buffered_docs;
 }
 
-void IndexWriter::SegmentContext::Commit(uint64_t queries, uint64_t last_tick) {
+void IndexWriter::SegmentContext::Commit(uint64_t queries,
+                                         uint64_t last_tick) noexcept {
   IRS_ASSERT(last_tick < writer_limits::kMaxTick);
   IRS_ASSERT(queries <= last_tick);
   const auto first_tick = last_tick - queries;
@@ -1118,8 +1031,8 @@ void IndexWriter::SegmentContext::Commit(uint64_t queries, uint64_t last_tick) {
 IndexWriter::IndexWriter(
   ConstructToken, index_lock::ptr&& lock,
   index_file_refs::ref_t&& lock_file_ref, directory& dir, format::ptr codec,
-  size_t segment_pool_size, const SegmentOptions& segment_limits,
-  const Comparer* comparator, const ColumnInfoProvider& column_info,
+  const SegmentOptions& segment_limits, const Comparer* comparator,
+  const ColumnInfoProvider& column_info,
   const FeatureInfoProvider& feature_info,
   const PayloadProvider& meta_payload_provider,
   std::shared_ptr<const DirectoryReaderImpl>&& committed_reader,
@@ -1132,7 +1045,6 @@ IndexWriter::IndexWriter(
     dir_{dir},
     committed_reader_{std::move(committed_reader)},
     segment_limits_{segment_limits},
-    segment_writer_pool_{segment_pool_size},
     seg_counter_{committed_reader_->Meta().index_meta.seg_counter},
     last_gen_{committed_reader_->Meta().index_meta.gen},
     writer_{codec_->get_index_meta_writer()},
@@ -1188,6 +1100,7 @@ void IndexWriter::Clear(uint64_t tick) {
   to_commit.ctx = SwitchFlushContext();
   // Ensure there are no active struct update operations
   to_commit.ctx->pending_.Wait();
+  to_commit.ctx->MoveTo(to_commit.ctx->pending_.segments);
 
   Abort();  // iff Clear called between Begin and Commit
   ApplyFlush(std::move(to_commit));
@@ -1270,8 +1183,7 @@ IndexWriter::ptr IndexWriter::Make(directory& dir, format::ptr codec,
 
   auto writer = std::make_shared<IndexWriter>(
     ConstructToken{}, std::move(lock), std::move(lock_ref), dir,
-    std::move(codec), options.segment_pool_size, SegmentOptions{options},
-    options.comparator,
+    std::move(codec), SegmentOptions{options}, options.comparator,
     options.column_info ? options.column_info : kDefaultColumnInfo,
     options.features ? options.features : kDefaultFeatureInfo,
     options.meta_payload_provider, std::move(reader),
@@ -1284,20 +1196,7 @@ IndexWriter::ptr IndexWriter::Make(directory& dir, format::ptr codec,
 }
 
 uint64_t IndexWriter::BufferedDocs() const {
-  uint64_t docs_in_ram = 0;
-  auto ctx = GetFlushContext();
-  // 'pending_used_segment_contexts_'/'pending_free_segment_contexts_'
-  // may be modified
-  std::shared_lock lock{ctx->pending_.Mutex()};
-
-  for (const auto& entry : ctx->pending_segments_) {
-    IRS_ASSERT(entry.segment_ != nullptr);
-    // reading segment_writer::docs_count() is not thread safe
-    docs_in_ram +=
-      entry.segment_->buffered_docs_.load(std::memory_order_relaxed);
-  }
-
-  return docs_in_ram;
+  return buffered_docs_.load(std::memory_order_relaxed);
 }
 
 uint64_t IndexWriter::NextSegmentId() noexcept {
@@ -1634,68 +1533,14 @@ IndexWriter::FlushContextPtr IndexWriter::SwitchFlushContext() noexcept {
   }
 }
 
-IndexWriter::ActiveSegmentContext IndexWriter::GetSegmentContext() try {
-  // TODO(MBkkt) rewrite this when will be written parallel Commit
-  //  Few ideas about rewriting:
-  //  1. We should use all available memory
-  //  2. Flush should be async, waiting Flush only if we don't have other choice
-  //  3. segment_memory/count_max should be removed in their current state
-  // increment counter to acquire reservation,
-  // if another thread tries to reserve last context then it'll be over limit
-  const auto segments_active =
-    segments_active_.fetch_add(1, std::memory_order_relaxed) + 1;
-
-  // no free segment_context available and maximum number of segments reached
-  // must return to caller so as to unlock/relock flush_context before retrying
-  // to get a new segment so as to avoid a deadlock due to a read-write-read
-  // situation for FlushContext::context_mutex_ with threads trying to lock
-  // FlushContext::context_mutex_ to return their segment_context
-  if (const auto segment_count_max =
-        segment_limits_.segment_count_max.load(std::memory_order_relaxed);
-      segment_count_max < segments_active) {
-    segments_active_.fetch_sub(1, std::memory_order_relaxed);
-    return {};
-  }
-
-  {
-    auto flush = GetFlushContext();
-    if (auto* node = flush->pending_freelist_.pop(); node != nullptr) {
-      flush->pending_.Add();
-      auto* value = static_cast<PendingSegmentContext*>(node);
-      return {value->segment_, segments_active_, flush.get(), value};
-    }
-  }
-
-  const auto options = GetSegmentWriterOptions(false);
-
-  // should allocate a new segment_context from the pool
-  std::shared_ptr<SegmentContext> segment_ctx = segment_writer_pool_.emplace(
-    dir_,
-    [this] {
-      SegmentMeta meta{.codec = codec_};
-      meta.name = file_name(NextSegmentId());
-      return meta;
-    },
-    options);
-
-  // recreate writer if it reserved more memory than allowed by current limits
-  if (auto segment_memory_max = segment_limits_.segment_memory_max.load();
-      segment_memory_max < segment_ctx->writer_->memory_reserved()) {
-    segment_ctx->writer_ = segment_writer::make(segment_ctx->dir_, options);
-  }
-
-  return {segment_ctx, segments_active_};
-} catch (...) {
-  segments_active_.fetch_sub(1, std::memory_order_relaxed);
-  throw;
-}
-
 SegmentWriterOptions IndexWriter::GetSegmentWriterOptions(
   bool consolidation) const noexcept {
   return {
     .column_info = column_info_,
     .feature_info = feature_info_,
     .scorers_features = wand_features_,
+    .memory_limit = segment_limits_.memory,
+    .buffered_docs = buffered_docs_,
     .scorers = wand_scorers_,
     .comparator = comparator_,
     .resource_manager = consolidation ? *resource_manager_.consolidations
@@ -1711,14 +1556,16 @@ IndexWriter::PendingContext IndexWriter::PrepareFlush(const CommitInfo& info) {
   IRS_ASSERT(committed_tick_ <= tick);
   IRS_ASSERT(tick <= writer_limits::kMaxTick);
 
-  // noexcept block: I'm not sure is it really necessary or not
   auto ctx = SwitchFlushContext();
   // ensure there are no active struct update operations
   ctx->pending_.Wait();
-  // Stage 0
-  // wait for any outstanding segments to settle to ensure that any rollbacks
-  // are properly tracked in 'modification_queries_'
-  const auto flushed_tick = ctx->FlushPending(committed_tick_, tick);
+  ctx->MovePending(committed_tick_, tick);
+  // Stage 0 Flush all segments
+  auto flushed_tick = committed_tick_;
+  for (auto* segment : ctx->segments_) {
+    segment->Flush();
+    flushed_tick = std::max(flushed_tick, segment->last_tick_);
+  }
 
   std::unique_lock cleanup_lock{consolidating_.lock, std::defer_lock};
   Finally cleanup = [&]() noexcept {
@@ -2216,8 +2063,8 @@ void IndexWriter::ApplyFlush(PendingContext&& context) {
 
   // The 1st phase of the transaction successfully finished here,
   // ensure we rollback changes if something goes wrong afterwards
-  Finally update_generation = [this,
-                               new_gen = to_commit.index_meta.gen]() noexcept {
+  auto new_gen = to_commit.index_meta.gen;
+  Finally update_generation = [&]() noexcept {
     if (IRS_UNLIKELY(!pending_state_.Valid())) {
       writer_->rollback();  // Rollback failed transaction
     }
@@ -2266,7 +2113,6 @@ bool IndexWriter::Start(const CommitInfo& info) {
     }
   };
 
-  // TODO(MBkkt) error here means we don't remove cached from consolidating
   ApplyFlush(std::move(to_commit));
 
   return true;

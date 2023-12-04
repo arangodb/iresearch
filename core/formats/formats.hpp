@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <function2/function2.hpp>
 #include <set>
 #include <vector>
@@ -73,10 +74,18 @@ struct WanderatorOptions {
   ScoreFunctionFactory factory;
 };
 
+#ifdef IRESEARCH_TEST
+inline std::atomic_size_t test_memory_limit =
+  std::numeric_limits<size_t>::max();
+inline std::atomic_size_t test_buffered_docs = 0;
+#endif
+
 struct SegmentWriterOptions {
   const ColumnInfoProvider& column_info;
   const FeatureInfoProvider& feature_info;
   const feature_set_t& scorers_features;
+  const std::atomic_size_t& memory_limit = test_memory_limit;
+  std::atomic_size_t& buffered_docs = test_buffered_docs;
   ScorersView scorers;
   const Comparer* const comparator{};
   IResourceManager& resource_manager{IResourceManager::kNoop};

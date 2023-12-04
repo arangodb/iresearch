@@ -92,6 +92,12 @@ class BufferedColumn final : public column_output, private util::noncopyable {
     pending_key_ = doc_limits::invalid();
   }
 
+  void Reset() noexcept {
+    Clear();
+    data_buf_.shrink_to_fit();
+    index_.shrink_to_fit();
+  }
+
   // 1st - doc map (old->new), empty -> already sorted
   // 2nd - flushed column identifier
   std::pair<DocMap, field_id> Flush(

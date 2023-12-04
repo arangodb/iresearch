@@ -437,7 +437,6 @@ int put(const std::string& path, const std::string& dir_type,
   if (!sorted_field.empty()) {
     opts.comparator = &comparer;
   }
-  opts.segment_pool_size = indexer_threads;
   opts.segment_memory_max = segment_mem_max;
   opts.features = [](irs::type_info::type_id id) {
     const irs::ColumnInfo info{
