@@ -35,9 +35,11 @@
 #pragma warning(default : 4101)
 #endif
 
+#include <condition_variable>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <mutex>
 
 #if defined(_MSC_VER)
 #pragma warning(disable : 4229)

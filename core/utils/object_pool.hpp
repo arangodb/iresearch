@@ -24,28 +24,29 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
 #include <functional>
 #include <utility>
 #include <vector>
 
-#include "async_utils.hpp"
 #include "memory.hpp"
 #include "misc.hpp"
 #include "noncopyable.hpp"
 #include "shared.hpp"
 #include "thread_utils.hpp"
+#include "utils/empty.hpp"
 
 namespace irs {
 
 // Lock-free stack.
 // Move construction/assignment is not thread-safe.
-template<typename T>
+template<typename T = utils::Empty>
 class concurrent_stack : private util::noncopyable {
  public:
   using element_type = T;
 
   struct node_type {
-    element_type value{};
+    IRS_NO_UNIQUE_ADDRESS element_type value{};
     // next needs to be atomic because
     // nodes are kept in a free-list and reused!
     std::atomic<node_type*> next{};
@@ -77,9 +78,8 @@ class concurrent_stack : private util::noncopyable {
       if (!head.node) {
         return nullptr;
       }
-
-      new_head.node = head.node->next.load(std::memory_order_acquire);
       new_head.version = head.version + 1;
+      new_head.node = head.node->next.load(std::memory_order_acquire);
     } while (!head_.compare_exchange_weak(
       head, new_head, std::memory_order_acquire, std::memory_order_relaxed));
 
@@ -91,33 +91,28 @@ class concurrent_stack : private util::noncopyable {
     concurrent_node new_head{&new_node};
 
     do {
-      new_node.next.store(head.node, std::memory_order_release);
-
       new_head.version = head.version + 1;
+      new_node.next.store(head.node, std::memory_order_release);
     } while (!head_.compare_exchange_weak(
       head, new_head, std::memory_order_release, std::memory_order_relaxed));
   }
 
  private:
-  // CMPXCHG16B requires that the destination
-  // (memory) operand be 16-byte aligned
-  struct alignas(kCmpXChg16Align) concurrent_node {
-    explicit concurrent_node(node_type* node = nullptr) noexcept
-      : version{0}, node{node} {}
+  struct alignas(sizeof(uintptr_t) * 2) concurrent_node {
+    explicit concurrent_node(node_type* node = nullptr) noexcept : node{node} {}
 
-    uintptr_t version;  // avoid aba problem
+    uintptr_t version{0};  // avoid aba problem
     node_type* node;
   };
 
-  static_assert(kCmpXChg16Align == alignof(concurrent_node),
-                "invalid alignment");
-
   void move_unsynchronized(concurrent_stack&& rhs) noexcept {
-    head_ = rhs.head_.load(std::memory_order_relaxed);
+    head_.store(rhs.head_.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
     rhs.head_.store(concurrent_node{}, std::memory_order_relaxed);
   }
 
-  std::atomic<concurrent_node> head_;
+  std::atomic<concurrent_node> head_{};
+  static_assert(sizeof(head_) == alignof(std::atomic<concurrent_node>));
 };
 
 // Represents a control object of unbounded_object_pool

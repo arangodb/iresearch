@@ -185,6 +185,8 @@ class IndexWriter : private util::noncopyable {
  private:
   struct FlushContext;
 
+  struct PendingSegmentContext;
+
   using FlushContextPtr =
     std::unique_ptr<FlushContext, void (*)(FlushContext*)>;
 
@@ -196,13 +198,10 @@ class IndexWriter : private util::noncopyable {
   class ActiveSegmentContext {
    public:
     ActiveSegmentContext() = default;
-    ActiveSegmentContext(
-      std::shared_ptr<SegmentContext> segment,
-      std::atomic_size_t& segments_active,
-      // the FlushContext the SegmentContext is currently registered with
-      FlushContext* flush = nullptr,
-      // the segment offset in flush->pending_segments_
-      size_t pending_segment_offset = writer_limits::kInvalidOffset) noexcept;
+    ActiveSegmentContext(std::shared_ptr<SegmentContext> segment,
+                         std::atomic_size_t& segments_active,
+                         FlushContext* flush = nullptr,
+                         PendingSegmentContext* pending = nullptr) noexcept;
     ActiveSegmentContext(ActiveSegmentContext&& other) noexcept;
     ActiveSegmentContext& operator=(ActiveSegmentContext&& other) noexcept;
 
@@ -220,8 +219,8 @@ class IndexWriter : private util::noncopyable {
     std::atomic_size_t* segments_active_{nullptr};
     // nullptr will not match any FlushContext
     FlushContext* flush_{nullptr};
-    // segment offset in flush_->pending_segments_
-    size_t pending_segment_offset_{writer_limits::kInvalidOffset};
+    // object from flush_->pending_segments_
+    PendingSegmentContext* pending_{nullptr};
   };
 
   static_assert(std::is_nothrow_move_constructible_v<ActiveSegmentContext>);
@@ -473,8 +472,6 @@ class IndexWriter : private util::noncopyable {
 
   // Name of the lock for index repository
   static constexpr std::string_view kWriteLockName = "write.lock";
-
-  ~IndexWriter() noexcept;
 
   // Returns current index snapshot
   DirectoryReader GetSnapshot() const noexcept {
@@ -762,16 +759,13 @@ class IndexWriter : private util::noncopyable {
   };
 
   using SegmentPool = unbounded_object_pool<SegmentContext>;
-  // 'value' == node offset into 'pending_segment_context_'
-  using Freelist = concurrent_stack<size_t>;
+  using Freelist = concurrent_stack<>;
 
-  struct PendingSegmentContext : public Freelist::node_type {
+  struct PendingSegmentContext : Freelist::node_type {
     std::shared_ptr<SegmentContext> segment_;
 
-    PendingSegmentContext(std::shared_ptr<SegmentContext> segment,
-                          size_t pending_segment_context_offset)
-      : Freelist::node_type{.value = pending_segment_context_offset},
-        segment_{std::move(segment)} {
+    PendingSegmentContext(std::shared_ptr<SegmentContext> segment)
+      : segment_{std::move(segment)} {
       IRS_ASSERT(segment_ != nullptr);
     }
   };
@@ -786,17 +780,20 @@ class IndexWriter : private util::noncopyable {
   // 'segment_context' is not used once the tracker 'flush_context' is no
   // longer active.
   struct FlushContext {
-    // ref tracking directory used by this context
-    // (tracks all/only refs for this context)
-    RefTrackingDirectory::ptr dir_;
-    // guard for the current context during flush
-    // (write) operations vs update (read)
-    std::shared_mutex context_mutex_;
+    // Protect acuiring this context for read/write before they will finish
+    absl::Mutex lock_;
     // the next context to switch to
     FlushContext* next_{nullptr};
 
+    // ref tracking directory used by this context
+    // (tracks all/only refs for this context)
+    RefTrackingDirectory::ptr dir_;
+
     std::vector<std::shared_ptr<SegmentContext>> segments_;
     CachedReaders cached_;
+
+    // Waiting pending and protecting from concurrent access of multiple readers
+    WaitGroup pending_;
 
     // complete segments to be added during next commit (import)
     std::vector<ImportContext> imports_;
@@ -814,7 +811,6 @@ class IndexWriter : private util::noncopyable {
     std::deque<PendingSegmentContext> pending_segments_;
     // entries from 'pending_segments_' that are available for reuse
     Freelist pending_freelist_;
-    WaitGroup pending_;
 
     // set of segments to be removed from the index upon commit
     ConsolidatingSegments segment_mask_;
@@ -841,17 +837,6 @@ class IndexWriter : private util::noncopyable {
     // Reference to flush context held until end of commit
     FlushContextPtr ctx{nullptr, nullptr};
     uint64_t tick{writer_limits::kMinTick};
-
-    [[nodiscard]] auto StartReset(IndexWriter& writer,
-                                  bool keep_next = false) noexcept {
-      auto* curr = ctx.get();
-      std::unique_lock lock{writer.consolidation_lock_, std::defer_lock};
-      if (curr != nullptr) {
-        lock.lock();
-        writer.Cleanup(*curr, keep_next ? nullptr : curr->next_);
-      }
-      return lock;
-    }
   };
 
   struct PendingContext : PendingBase {
@@ -877,11 +862,6 @@ class IndexWriter : private util::noncopyable {
     void FinishReset() noexcept {
       ctx.reset();
       commit.reset();
-    }
-
-    void Reset(IndexWriter& writer) noexcept {
-      std::ignore = StartReset(writer);
-      FinishReset();
     }
   };
 
@@ -923,17 +903,17 @@ class IndexWriter : private util::noncopyable {
   PayloadProvider meta_payload_provider_;  // provides payload for new segments
   const Comparer* comparator_;
   format::ptr codec_;
-  // guard for cached_segment_readers_, commit_pool_, meta_
-  // (modification during commit()/defragment()), payload_buf_
-  std::mutex commit_lock_;
-  std::recursive_mutex consolidation_lock_;
-  // segments that are under consolidation
-  ConsolidatingSegments consolidating_segments_;
+  // Prevent concurrent Begin/Commit/Rollback/Clear and multiple Consolidate
+  absl::Mutex commit_lock_;
+  struct {
+    absl::Mutex lock;
+    ConsolidatingSegments segments;  // segments that are under consolidation
+  } consolidating_;
   // directory used for initialization of readers
   directory& dir_;
-  // collection of contexts that collect data to be
-  // flushed, 2 because just swap them
-  std::vector<FlushContext> flush_context_pool_{2};
+  // Flushed contexts, while one commiting another writing
+  // TODO(MBkkt) Code maybe not ready to more than 2 FlushContext.
+  std::array<FlushContext, 2> flush_contexts_;
   // currently active context accumulating data to be
   // processed during the next flush
   std::atomic<FlushContext*> flush_context_;
