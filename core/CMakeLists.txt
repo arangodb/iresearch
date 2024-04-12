@@ -11,6 +11,9 @@ endif ()
 if (NOT IResearch_version_patch)
   set(IResearch_version_patch "0")
 endif ()
+  
+message(STATUS "iresearch ICU_INCLUDE_DIR: ${ICU_INCLUDE_DIR}")
+message(STATUS "iresearch ICU_STATIC_LIBS: ${ICU_STATIC_LIBS}")
 
 set(SIMD_LIBRARY_STATIC "simdcomp-static")
 set(FASTTEXT_LIBRARY_STATIC "fasttext-static")
