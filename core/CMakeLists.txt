@@ -14,6 +14,8 @@ endif ()
   
 message(STATUS "iresearch ICU_INCLUDE_DIR: ${ICU_INCLUDE_DIR}")
 message(STATUS "iresearch ICU_STATIC_LIBS: ${ICU_STATIC_LIBS}")
+get_directory_property(DirDefs COMPILE_DEFINITIONS) 
+message(STATUS "iresearch COMPILE_DEFINITIONS: ${DirDefs}")
 
 set(SIMD_LIBRARY_STATIC "simdcomp-static")
 set(FASTTEXT_LIBRARY_STATIC "fasttext-static")
