@@ -18,6 +18,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 message(STATUS "ICU_INCLUDE_DIR: ${ICU_INCLUDE_DIR}")
 message(STATUS "ICU_LIBRARY_DIR: ${ICU_LIBRARY_DIR}")
 message(STATUS "ICU_STATIC_LIBS: ${ICU_STATIC_LIBS}")
+set(CMAKE_VERBOSE_MAKEFILE ON)
 
 ################################################################################
 ### interprocedural optimization (link time optimization)
