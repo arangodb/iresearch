@@ -21,6 +21,10 @@
 /// @author Vasiliy Nabatchikov
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifndef IRESEARCH_ICU_NAMESPACE
+#define IRESEARCH_ICU_NAMESPACE icu
+#endif
+
 #include "analysis/text_token_stemming_stream.hpp"
 #include "gtest/gtest.h"
 #include "velocypack/Parser.h"
@@ -42,7 +46,7 @@ TEST_F(stemming_token_stream_tests, test_stemming) {
   // there is no Snowball stemmer for "C" locale
   {
     irs::analysis::stemming_token_stream::options_t opts;
-    opts.locale = icu::Locale{"C"};
+    opts.locale = IRESEARCH_ICU_NAMESPACE::Locale{"C"};
 
     std::string_view data("running");
     irs::analysis::stemming_token_stream stream(opts);
@@ -68,7 +72,7 @@ TEST_F(stemming_token_stream_tests, test_stemming) {
     std::string_view data("running");
 
     irs::analysis::stemming_token_stream::options_t opts;
-    opts.locale = icu::Locale::createFromName("en");
+    opts.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en");
 
     irs::analysis::stemming_token_stream stream(opts);
 
@@ -92,7 +96,7 @@ TEST_F(stemming_token_stream_tests, test_stemming) {
     std::string_view data("running");
 
     irs::analysis::stemming_token_stream::options_t opts;
-    opts.locale = icu::Locale::createFromName("zh");
+    opts.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("zh");
 
     irs::analysis::stemming_token_stream stream(opts);
 

@@ -21,6 +21,10 @@
 /// @author Vasiliy Nabatchikov
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifndef IRESEARCH_ICU_NAMESPACE
+#define IRESEARCH_ICU_NAMESPACE icu
+#endif
+
 #include <unicode/coll.h>      // for icu::Collator
 #include <unicode/decimfmt.h>  // for icu::DecimalFormat
 #include <unicode/numfmt.h>    // for icu::NumberFormat
@@ -104,7 +108,7 @@ TEST_F(TextAnalyzerParserTestSuite, test_nbsp_whitespace) {
   irs::analysis::text_token_stream::options_t options;
 
   options.locale =
-    icu::Locale::createFromName("C.UTF-8");  // utf8 encoding used bellow
+    IRESEARCH_ICU_NAMESPACE::Locale::createFromName("C.UTF-8");  // utf8 encoding used bellow
 
   std::string sDataUTF8 = "1,24 prosenttia";
 
@@ -149,7 +153,7 @@ TEST_F(TextAnalyzerParserTestSuite, test_text_analyzer) {
   {
     irs::analysis::text_token_stream::options_t options;
 
-    options.locale = icu::Locale::createFromName("en_US.UTF-8");
+    options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en_US.UTF-8");
 
     std::string data =
       " A  hErd of   quIck brown  foXes ran    and Jumped over  a     "
@@ -252,7 +256,7 @@ TEST_F(TextAnalyzerParserTestSuite, test_text_analyzer) {
 
     {
       irs::analysis::text_token_stream::options_t options;
-      options.locale = icu::Locale::createFromName("en_US.UTF-8");
+      options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en_US.UTF-8");
 
       irs::analysis::text_token_stream stream(options,
                                               options.explicit_stopwords);
@@ -292,7 +296,7 @@ TEST_F(TextAnalyzerParserTestSuite, test_text_analyzer) {
     {
       irs::analysis::text_token_stream::options_t options;
       options.case_convert = irs::analysis::text_token_stream::LOWER;
-      options.locale = icu::Locale::createFromName("en_US.UTF-8");
+      options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en_US.UTF-8");
       irs::analysis::text_token_stream stream(options,
                                               options.explicit_stopwords);
       testFunc(data, &stream);
@@ -331,7 +335,7 @@ TEST_F(TextAnalyzerParserTestSuite, test_text_analyzer) {
     {
       irs::analysis::text_token_stream::options_t options;
       options.case_convert = irs::analysis::text_token_stream::UPPER;
-      options.locale = icu::Locale::createFromName("en_US.UTF-8");
+      options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en_US.UTF-8");
       irs::analysis::text_token_stream stream(options,
                                               options.explicit_stopwords);
       testFunc(data, &stream);
@@ -370,7 +374,7 @@ TEST_F(TextAnalyzerParserTestSuite, test_text_analyzer) {
     {
       irs::analysis::text_token_stream::options_t options;
       options.case_convert = irs::analysis::text_token_stream::NONE;
-      options.locale = icu::Locale::createFromName("en_US.UTF-8");
+      options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en_US.UTF-8");
       irs::analysis::text_token_stream stream(options,
                                               options.explicit_stopwords);
       testFunc(data, &stream);
@@ -424,7 +428,7 @@ TEST_F(TextAnalyzerParserTestSuite, test_text_analyzer) {
     {
       irs::analysis::text_token_stream::options_t options;
       options.explicit_stopwords = {"a", "of", "and"};
-      options.locale = icu::Locale::createFromName("en_US.UTF-8");
+      options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en_US.UTF-8");
       irs::analysis::text_token_stream stream(options,
                                               options.explicit_stopwords);
       testFunc(data, &stream);
@@ -521,7 +525,7 @@ TEST_F(TextAnalyzerParserTestSuite, test_text_analyzer) {
     {
       irs::analysis::text_token_stream::options_t options;
       // we ignore encoding specified in locale
-      options.locale = icu::Locale::createFromName("ru_RU.UTF-16");
+      options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("ru_RU.UTF-16");
       irs::analysis::text_token_stream stream(options,
                                               options.explicit_stopwords);
       testFunc(irs::ViewCast<char>(data), &stream);
@@ -583,7 +587,7 @@ TEST_F(TextAnalyzerParserTestSuite, test_text_analyzer) {
     {
       irs::analysis::text_token_stream::options_t options;
       options.locale =
-        icu::Locale::createFromName("en_US.utf32");  // ignore encoding
+        IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en_US.utf32");  // ignore encoding
       irs::analysis::text_token_stream stream(options,
                                               options.explicit_stopwords);
 
@@ -1302,7 +1306,7 @@ TEST_F(TextAnalyzerParserTestSuite, test_text_ngrams) {
 
     {
       irs::analysis::text_token_stream::options_t options;
-      options.locale = icu::Locale::createFromName("en_US.UTF-8");
+      options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en_US.UTF-8");
       options.explicit_stopwords.emplace("a");
       options.min_gram = 4;
       options.min_gram_set = true;
@@ -1336,7 +1340,7 @@ TEST_F(TextAnalyzerParserTestSuite, test_text_ngrams) {
 
     {
       irs::analysis::text_token_stream::options_t options;
-      options.locale = icu::Locale::createFromName("en_US.UTF-8");
+      options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en_US.UTF-8");
       options.explicit_stopwords.emplace("a");
       options.min_gram = 4;
       options.min_gram_set = true;

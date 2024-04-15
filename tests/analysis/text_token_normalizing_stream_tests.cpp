@@ -26,6 +26,10 @@
 #include "velocypack/Parser.h"
 #include "velocypack/velocypack-aliases.h"
 
+#ifndef IRESEARCH_ICU_NAMESPACE
+#define IRESEARCH_ICU_NAMESPACE icu
+#endif
+
 namespace {
 
 class normalizing_token_stream_tests : public ::testing::Test {};
@@ -43,7 +47,7 @@ TEST_F(normalizing_token_stream_tests, test_normalizing) {
   // test default normalization
   {
     options_t options;
-    options.locale = icu::Locale::createFromName("en");
+    options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en");
 
     std::string_view data("rUnNiNg\xd0\x81");
     irs::analysis::normalizing_token_stream stream(options);
@@ -68,7 +72,7 @@ TEST_F(normalizing_token_stream_tests, test_normalizing) {
   {
     options_t options;
 
-    options.locale = icu::Locale::createFromName("en.utf8");
+    options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en.utf8");
     options.accent = false;
 
     std::string_view data("rUnNiNg\xd0\x81");
@@ -93,7 +97,7 @@ TEST_F(normalizing_token_stream_tests, test_normalizing) {
   {
     options_t options;
 
-    options.locale = icu::Locale::createFromName("en.utf8");
+    options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en.utf8");
     options.case_convert = irs::analysis::normalizing_token_stream::LOWER;
 
     std::string_view data("rUnNiNg\xd0\x81");
@@ -118,7 +122,7 @@ TEST_F(normalizing_token_stream_tests, test_normalizing) {
   {
     options_t options;
 
-    options.locale = icu::Locale::createFromName("en.utf8");
+    options.locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("en.utf8");
     options.case_convert = irs::analysis::normalizing_token_stream::UPPER;
 
     std::string_view data("rUnNiNg\xd1\x91");
