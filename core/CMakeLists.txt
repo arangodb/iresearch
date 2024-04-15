@@ -365,12 +365,17 @@ add_dependencies(iresearch-static
 target_include_directories(iresearch-static
   SYSTEM
   PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
-  PRIVATE ${ICU_INCLUDE_DIR}
   PRIVATE $<TARGET_PROPERTY:iresearch-ofst,INTERFACE_INCLUDE_DIRECTORIES>
   PUBLIC ${VPACK_INCLUDE_PATH}
   PUBLIC $<TARGET_PROPERTY:hwy,INTERFACE_INCLUDE_DIRECTORIES>
   PUBLIC $<TARGET_PROPERTY:${FASTTEXT_LIBRARY_STATIC},INTERFACE_INCLUDE_DIRECTORIES>
   )
+
+target_include_directories(iresearch-static
+  SYSTEM
+  BEFORE
+  PRIVATE ${ICU_INCLUDE_DIR}
+)
 
 # setup MSVC specific compiler flags
 if (MSVC)
@@ -487,8 +492,13 @@ set_ipo(iresearch-analyzer-text-static)
 
 target_include_directories(iresearch-analyzer-text-static
   SYSTEM
-  PRIVATE ${ICU_INCLUDE_DIR} # cmake on MSVC does not properly expand dependencies for linked libraries
   PRIVATE ${Snowball_INCLUDE_DIR}
+  )
+
+target_include_directories(iresearch-analyzer-text-static
+  SYSTEM
+  BEFORE
+  PRIVATE ${ICU_INCLUDE_DIR} # cmake on MSVC does not properly expand dependencies for linked libraries
   )
 
 set_target_properties(iresearch-analyzer-text-static
@@ -516,6 +526,7 @@ set_ipo(iresearch-analyzer-collation-static)
 
 target_include_directories(iresearch-analyzer-collation-static
   SYSTEM
+  BEFORE
   PRIVATE ${ICU_INCLUDE_DIR} # cmake on MSVC does not properly expand dependencies for linked libraries
   )
 
@@ -565,6 +576,7 @@ set_ipo(iresearch-analyzer-norm-static)
 
 target_include_directories(iresearch-analyzer-norm-static
   SYSTEM
+  BEFORE
   PRIVATE ${ICU_INCLUDE_DIR} # cmake on MSVC does not properly expand dependencies for linked libraries
   )
 
@@ -594,6 +606,11 @@ set_ipo(iresearch-analyzer-stem-static)
 target_include_directories(iresearch-analyzer-stem-static
   SYSTEM
   PRIVATE ${Snowball_INCLUDE_DIR}
+  )
+
+target_include_directories(iresearch-analyzer-stem-static
+  SYSTEM
+  BEFORE
   PRIVATE ${ICU_INCLUDE_DIR}
   )
 
