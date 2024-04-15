@@ -41,7 +41,8 @@ using namespace irs;
 
 constexpr std::string_view LOCALE_PARAM_NAME{"locale"};
 
-bool locale_from_slice(VPackSlice slice, IRESEARCH_ICU_NAMESPACE::Locale& locale) {
+bool locale_from_slice(VPackSlice slice,
+                       IRESEARCH_ICU_NAMESPACE::Locale& locale) {
   if (!slice.isString()) {
     IRS_LOG_WARN(absl::StrCat(
       "Non-string value in '", LOCALE_PARAM_NAME,
@@ -52,7 +53,8 @@ bool locale_from_slice(VPackSlice slice, IRESEARCH_ICU_NAMESPACE::Locale& locale
 
   const auto locale_name = slice.copyString();
 
-  locale = IRESEARCH_ICU_NAMESPACE::Locale::createCanonical(locale_name.c_str());
+  locale =
+    IRESEARCH_ICU_NAMESPACE::Locale::createCanonical(locale_name.c_str());
 
   if (locale.isBogus()) {
     IRS_LOG_WARN(absl::StrCat(
@@ -247,8 +249,8 @@ collation_token_stream::collation_token_stream(const options_t& options)
 bool collation_token_stream::reset(std::string_view data) {
   if (!state_->collator) {
     auto err = UErrorCode::U_ZERO_ERROR;
-    state_->collator.reset(
-      IRESEARCH_ICU_NAMESPACE::Collator::createInstance(state_->options.locale, err));
+    state_->collator.reset(IRESEARCH_ICU_NAMESPACE::Collator::createInstance(
+      state_->options.locale, err));
 
     if (!U_SUCCESS(err) || !state_->collator) {
       state_->collator.reset();
@@ -262,8 +264,10 @@ bool collation_token_stream::reset(std::string_view data) {
     return false;  // ICU UnicodeString signatures can handle at most INT32_MAX
   }
 
-  const IRESEARCH_ICU_NAMESPACE::UnicodeString icu_token = IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(
-    IRESEARCH_ICU_NAMESPACE::StringPiece(data.data(), static_cast<int32_t>(data.size())));
+  const IRESEARCH_ICU_NAMESPACE::UnicodeString icu_token =
+    IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(
+      IRESEARCH_ICU_NAMESPACE::StringPiece(data.data(),
+                                           static_cast<int32_t>(data.size())));
 
   byte_type raw_term_buf[MAX_TOKEN_SIZE];
   static_assert(sizeof raw_term_buf == sizeof state_->term_buf);

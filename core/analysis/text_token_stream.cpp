@@ -93,7 +93,8 @@ struct icu_objects {
 
   std::unique_ptr<IRESEARCH_ICU_NAMESPACE::Transliterator> transliterator;
   std::unique_ptr<IRESEARCH_ICU_NAMESPACE::BreakIterator> break_iterator;
-  const IRESEARCH_ICU_NAMESPACE::Normalizer2* normalizer{};  // reusable object owned by ICU
+  const IRESEARCH_ICU_NAMESPACE::Normalizer2*
+    normalizer{};  // reusable object owned by ICU
   stemmer_ptr stemmer;
 };
 
@@ -445,7 +446,8 @@ bool init_from_options(const analysis::text_token_stream::options_t& options,
     UErrorCode::U_ZERO_ERROR;  // a value that passes the U_SUCCESS() test
 
   // reusable object owned by ICU
-  objects->normalizer = IRESEARCH_ICU_NAMESPACE::Normalizer2::getNFCInstance(err);
+  objects->normalizer =
+    IRESEARCH_ICU_NAMESPACE::Normalizer2::getNFCInstance(err);
 
   if (!U_SUCCESS(err) || !objects->normalizer) {
     objects->normalizer = nullptr;
@@ -469,8 +471,9 @@ bool init_from_options(const analysis::text_token_stream::options_t& options,
                                                 // leaks in ICU
 
     // reusable object owned by *this
-    objects->transliterator.reset(IRESEARCH_ICU_NAMESPACE::Transliterator::createInstance(
-      collationRule, UTransDirection::UTRANS_FORWARD, err));
+    objects->transliterator.reset(
+      IRESEARCH_ICU_NAMESPACE::Transliterator::createInstance(
+        collationRule, UTransDirection::UTRANS_FORWARD, err));
 
     if (!U_SUCCESS(err) || !objects->transliterator) {
       objects->transliterator.reset();
@@ -488,7 +491,8 @@ bool init_from_options(const analysis::text_token_stream::options_t& options,
 
   // reusable object owned by *this
   objects->break_iterator.reset(
-    IRESEARCH_ICU_NAMESPACE::BreakIterator::createWordInstance(options.locale, err));
+    IRESEARCH_ICU_NAMESPACE::BreakIterator::createWordInstance(options.locale,
+                                                               err));
 
   if (!U_SUCCESS(err) || !objects->break_iterator) {
     objects->break_iterator.reset();
@@ -519,12 +523,13 @@ bool init_from_options(const analysis::text_token_stream::options_t& options,
   return true;
 }
 
-bool locale_from_string(std::string locale_name, IRESEARCH_ICU_NAMESPACE::Locale& locale) {
+bool locale_from_string(std::string locale_name,
+                        IRESEARCH_ICU_NAMESPACE::Locale& locale) {
   locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName(locale_name.c_str());
 
   if (!locale.isBogus()) {
-    locale = IRESEARCH_ICU_NAMESPACE::Locale{locale.getLanguage(), locale.getCountry(),
-                         locale.getVariant()};
+    locale = IRESEARCH_ICU_NAMESPACE::Locale{
+      locale.getLanguage(), locale.getCountry(), locale.getVariant()};
   }
 
   if (locale.isBogus()) {
@@ -538,7 +543,8 @@ bool locale_from_string(std::string locale_name, IRESEARCH_ICU_NAMESPACE::Locale
   return true;
 }
 
-bool locale_from_slice(VPackSlice slice, IRESEARCH_ICU_NAMESPACE::Locale& locale) {
+bool locale_from_slice(VPackSlice slice,
+                       IRESEARCH_ICU_NAMESPACE::Locale& locale) {
   if (!slice.isString()) {
     IRS_LOG_WARN(absl::StrCat(
       "Non-string value in '", LOCALE_PARAM_NAME,
@@ -1001,7 +1007,8 @@ bool text_token_stream::reset(std::string_view data) {
   }
 
   state_->data = IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(
-    IRESEARCH_ICU_NAMESPACE::StringPiece{data.data(), static_cast<int32_t>(data.size())});
+    IRESEARCH_ICU_NAMESPACE::StringPiece{data.data(),
+                                         static_cast<int32_t>(data.size())});
 
   // tokenise the unicode data
   state_->break_iterator->setText(state_->data);

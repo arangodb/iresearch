@@ -194,8 +194,9 @@ TEST(collation_token_stream_test, check_collation) {
   auto get_collation_key = [&](std::string_view data) -> irs::bytes_view {
     err = UErrorCode::U_ZERO_ERROR;
     IRESEARCH_ICU_NAMESPACE::CollationKey key;
-    coll->getCollationKey(IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(IRESEARCH_ICU_NAMESPACE::StringPiece{
-                            data.data(), static_cast<int32_t>(data.size())}),
+    coll->getCollationKey(IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(
+                            IRESEARCH_ICU_NAMESPACE::StringPiece{
+                              data.data(), static_cast<int32_t>(data.size())}),
                           key, err);
     EXPECT_TRUE(U_SUCCESS(err));
 
@@ -277,8 +278,9 @@ TEST(collation_token_stream_test, check_collation_with_variant1) {
   auto get_collation_key = [&](std::string_view data) -> irs::bytes_view {
     err = UErrorCode::U_ZERO_ERROR;
     IRESEARCH_ICU_NAMESPACE::CollationKey key;
-    coll->getCollationKey(IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(IRESEARCH_ICU_NAMESPACE::StringPiece{
-                            data.data(), static_cast<int32_t>(data.size())}),
+    coll->getCollationKey(IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(
+                            IRESEARCH_ICU_NAMESPACE::StringPiece{
+                              data.data(), static_cast<int32_t>(data.size())}),
                           key, err);
     EXPECT_TRUE(U_SUCCESS(err));
 
@@ -558,8 +560,9 @@ TEST(collation_token_stream_test, check_collation_with_variant2) {
   auto get_collation_key = [&](std::string_view data) -> irs::bytes_view {
     err = UErrorCode::U_ZERO_ERROR;
     IRESEARCH_ICU_NAMESPACE::CollationKey key;
-    coll->getCollationKey(IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(IRESEARCH_ICU_NAMESPACE::StringPiece{
-                            data.data(), static_cast<int32_t>(data.size())}),
+    coll->getCollationKey(IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(
+                            IRESEARCH_ICU_NAMESPACE::StringPiece{
+                              data.data(), static_cast<int32_t>(data.size())}),
                           key, err);
     EXPECT_TRUE(U_SUCCESS(err));
 
@@ -715,7 +718,8 @@ TEST(collation_token_stream_test, check_tokens_utf8) {
 
   constexpr std::string_view locale_name = "en-EN.UTF-8";
 
-  const auto icu_locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName(locale_name.data());
+  const auto icu_locale =
+    IRESEARCH_ICU_NAMESPACE::Locale::createFromName(locale_name.data());
 
   CollationEncoder encodedKey;
   std::unique_ptr<IRESEARCH_ICU_NAMESPACE::Collator> coll{
@@ -726,8 +730,9 @@ TEST(collation_token_stream_test, check_tokens_utf8) {
   auto get_collation_key = [&](std::string_view data) -> irs::bytes_view {
     err = UErrorCode::U_ZERO_ERROR;
     IRESEARCH_ICU_NAMESPACE::CollationKey key;
-    coll->getCollationKey(IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(IRESEARCH_ICU_NAMESPACE::StringPiece{
-                            data.data(), static_cast<int32_t>(data.size())}),
+    coll->getCollationKey(IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(
+                            IRESEARCH_ICU_NAMESPACE::StringPiece{
+                              data.data(), static_cast<int32_t>(data.size())}),
                           key, err);
     EXPECT_TRUE(U_SUCCESS(err));
 
@@ -816,7 +821,8 @@ TEST(collation_token_stream_test, check_tokens) {
 
   constexpr std::string_view locale_name = "de-DE";
 
-  const auto icu_locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName(locale_name.data());
+  const auto icu_locale =
+    IRESEARCH_ICU_NAMESPACE::Locale::createFromName(locale_name.data());
 
   CollationEncoder encodedKey;
   std::unique_ptr<IRESEARCH_ICU_NAMESPACE::Collator> coll{
@@ -828,8 +834,9 @@ TEST(collation_token_stream_test, check_tokens) {
   auto get_collation_key = [&](std::string_view data) -> irs::bytes_view {
     IRESEARCH_ICU_NAMESPACE::CollationKey key;
     err = UErrorCode::U_ZERO_ERROR;
-    coll->getCollationKey(IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(IRESEARCH_ICU_NAMESPACE::StringPiece{
-                            data.data(), static_cast<int32_t>(data.size())}),
+    coll->getCollationKey(IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(
+                            IRESEARCH_ICU_NAMESPACE::StringPiece{
+                              data.data(), static_cast<int32_t>(data.size())}),
                           key, err);
     EXPECT_TRUE(U_SUCCESS(err));
 

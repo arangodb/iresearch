@@ -39,7 +39,8 @@ using namespace irs;
 
 constexpr std::string_view LOCALE_PARAM_NAME{"locale"};
 
-bool locale_from_slice(VPackSlice slice, IRESEARCH_ICU_NAMESPACE::Locale& locale) {
+bool locale_from_slice(VPackSlice slice,
+                       IRESEARCH_ICU_NAMESPACE::Locale& locale) {
   if (!slice.isString()) {
     IRS_LOG_WARN(absl::StrCat(
       "Non-string value in '", LOCALE_PARAM_NAME,

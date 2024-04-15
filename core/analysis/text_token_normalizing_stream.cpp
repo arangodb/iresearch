@@ -56,7 +56,8 @@ struct normalizing_token_stream::state_t {
   IRESEARCH_ICU_NAMESPACE::UnicodeString data;
   IRESEARCH_ICU_NAMESPACE::UnicodeString token;
   std::string term_buf;
-  const IRESEARCH_ICU_NAMESPACE::Normalizer2* normalizer;  // reusable object owned by ICU
+  const IRESEARCH_ICU_NAMESPACE::Normalizer2*
+    normalizer;  // reusable object owned by ICU
   std::unique_ptr<IRESEARCH_ICU_NAMESPACE::Transliterator> transliterator;
   const options_t options;
 
@@ -82,7 +83,8 @@ constexpr frozen::unordered_map<
     {"upper", analysis::normalizing_token_stream::UPPER},
 };
 
-bool locale_from_slice(VPackSlice slice, IRESEARCH_ICU_NAMESPACE::Locale& locale) {
+bool locale_from_slice(VPackSlice slice,
+                       IRESEARCH_ICU_NAMESPACE::Locale& locale) {
   if (!slice.isString()) {
     IRS_LOG_WARN(
       absl::StrCat("Non-string value in '", LOCALE_PARAM_NAME,
@@ -97,8 +99,8 @@ bool locale_from_slice(VPackSlice slice, IRESEARCH_ICU_NAMESPACE::Locale& locale
   locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName(locale_name.c_str());
 
   if (!locale.isBogus()) {
-    locale = IRESEARCH_ICU_NAMESPACE::Locale{locale.getLanguage(), locale.getCountry(),
-                         locale.getVariant()};
+    locale = IRESEARCH_ICU_NAMESPACE::Locale{
+      locale.getLanguage(), locale.getCountry(), locale.getVariant()};
   }
 
   if (locale.isBogus()) {
@@ -349,7 +351,8 @@ bool normalizing_token_stream::reset(std::string_view data) {
 
   if (!state_->normalizer) {
     // reusable object owned by ICU
-    state_->normalizer = IRESEARCH_ICU_NAMESPACE::Normalizer2::getNFCInstance(err);
+    state_->normalizer =
+      IRESEARCH_ICU_NAMESPACE::Normalizer2::getNFCInstance(err);
 
     if (!U_SUCCESS(err) || !state_->normalizer) {
       state_->normalizer = nullptr;
@@ -366,8 +369,9 @@ bool normalizing_token_stream::reset(std::string_view data) {
       "NFD; [:Nonspacing Mark:] Remove; NFC");
 
     // reusable object owned by *this
-    state_->transliterator.reset(IRESEARCH_ICU_NAMESPACE::Transliterator::createInstance(
-      collationRule, UTransDirection::UTRANS_FORWARD, err));
+    state_->transliterator.reset(
+      IRESEARCH_ICU_NAMESPACE::Transliterator::createInstance(
+        collationRule, UTransDirection::UTRANS_FORWARD, err));
 
     if (!U_SUCCESS(err) || !state_->transliterator) {
       state_->transliterator.reset();
@@ -383,7 +387,8 @@ bool normalizing_token_stream::reset(std::string_view data) {
   }
 
   state_->data = IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(
-    IRESEARCH_ICU_NAMESPACE::StringPiece{data.data(), static_cast<int32_t>(data.size())});
+    IRESEARCH_ICU_NAMESPACE::StringPiece{data.data(),
+                                         static_cast<int32_t>(data.size())});
 
   // normalize unicode
   state_->normalizer->normalize(state_->data, state_->token, err);
