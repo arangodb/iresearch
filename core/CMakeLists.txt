@@ -362,6 +362,10 @@ add_dependencies(iresearch-static
   velocypack
   )
 
+if (NOT (IRESEARCH_EXTERNAL_DEPENDENCIES STREQUAL "")
+  add_dependencies(iresearch-static ${IRESEARCH_EXTERNAL_DEPENDENCIES})
+endif()
+
 target_include_directories(iresearch-static
   SYSTEM
   PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
