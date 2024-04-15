@@ -15,6 +15,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+message(STATUS "ICU_INCLUDE_DIR: ${ICU_INCLUDE_DIR}")
+message(STATUS "ICU_LIBRARY_DIR: ${ICU_LIBRARY_DIR}")
+message(STATUS "ICU_STATIC_LIBS: ${ICU_STATIC_LIBS}")
+
 ################################################################################
 ### interprocedural optimization (link time optimization)
 ################################################################################
