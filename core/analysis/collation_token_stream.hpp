@@ -22,6 +22,10 @@
 
 #pragma once
 
+#ifndef IRESEARCH_ICU_NAMESPACE
+#define IRESEARCH_ICU_NAMESPACE icu
+#endif
+
 #include <unicode/locid.h>
 
 #include "analyzers.hpp"
@@ -42,7 +46,7 @@ class collation_token_stream final
     private util::noncopyable {
  public:
   struct options_t {
-    icu::Locale locale;
+    IRESEARCH_ICU_NAMESPACE::Locale locale;
     bool forceUtf8;
 
     options_t() : locale{"C"}, forceUtf8{true} { locale.setToBogus(); }

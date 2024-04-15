@@ -41,7 +41,7 @@ using namespace irs;
 
 constexpr std::string_view LOCALE_PARAM_NAME{"locale"};
 
-bool locale_from_slice(VPackSlice slice, icu::Locale& locale) {
+bool locale_from_slice(VPackSlice slice, IRESEARCH_ICU_NAMESPACE::Locale& locale) {
   if (!slice.isString()) {
     IRS_LOG_WARN(absl::StrCat(
       "Non-string value in '", LOCALE_PARAM_NAME,
@@ -52,7 +52,7 @@ bool locale_from_slice(VPackSlice slice, icu::Locale& locale) {
 
   const auto locale_name = slice.copyString();
 
-  locale = icu::Locale::createCanonical(locale_name.c_str());
+  locale = IRESEARCH_ICU_NAMESPACE::Locale::createCanonical(locale_name.c_str());
 
   if (locale.isBogus()) {
     IRS_LOG_WARN(absl::StrCat(
@@ -62,13 +62,13 @@ bool locale_from_slice(VPackSlice slice, icu::Locale& locale) {
     return false;
   }
 
-  // validate creation of icu::Collator
+  // validate creation of IRESEARCH_ICU_NAMESPACE::Collator
   auto err = UErrorCode::U_ZERO_ERROR;
-  std::unique_ptr<icu::Collator> collator{
-    icu::Collator::createInstance(locale, err)};
+  std::unique_ptr<IRESEARCH_ICU_NAMESPACE::Collator> collator{
+    IRESEARCH_ICU_NAMESPACE::Collator::createInstance(locale, err)};
 
   if (!collator) {
-    IRS_LOG_WARN(absl::StrCat("Can't instantiate icu::Collator from locale: ",
+    IRS_LOG_WARN(absl::StrCat("Can't instantiate IRESEARCH_ICU_NAMESPACE::Collator from locale: ",
                               locale_name));
     return false;
   }
@@ -77,7 +77,7 @@ bool locale_from_slice(VPackSlice slice, icu::Locale& locale) {
   if (err != UErrorCode::U_ZERO_ERROR) {
     IRS_LOG(
       U_FAILURE(err) ? log::Level::kWarn : log::Level::kTrace,
-      absl::StrCat("Failure while instantiation of icu::Collator from locale: ",
+      absl::StrCat("Failure while instantiation of IRESEARCH_ICU_NAMESPACE::Collator from locale: ",
                    locale_name, ", ", u_errorName(err)));
   }
 
@@ -223,7 +223,7 @@ constexpr size_t MAX_TOKEN_SIZE = 1 << 15;
 
 struct collation_token_stream::state_t {
   const options_t options;
-  std::unique_ptr<icu::Collator> collator;
+  std::unique_ptr<IRESEARCH_ICU_NAMESPACE::Collator> collator;
   byte_type term_buf[MAX_TOKEN_SIZE];
 
   explicit state_t(const options_t& opts) : options(opts) {}
@@ -248,7 +248,7 @@ bool collation_token_stream::reset(std::string_view data) {
   if (!state_->collator) {
     auto err = UErrorCode::U_ZERO_ERROR;
     state_->collator.reset(
-      icu::Collator::createInstance(state_->options.locale, err));
+      IRESEARCH_ICU_NAMESPACE::Collator::createInstance(state_->options.locale, err));
 
     if (!U_SUCCESS(err) || !state_->collator) {
       state_->collator.reset();
@@ -262,8 +262,8 @@ bool collation_token_stream::reset(std::string_view data) {
     return false;  // ICU UnicodeString signatures can handle at most INT32_MAX
   }
 
-  const icu::UnicodeString icu_token = icu::UnicodeString::fromUTF8(
-    icu::StringPiece(data.data(), static_cast<int32_t>(data.size())));
+  const IRESEARCH_ICU_NAMESPACE::UnicodeString icu_token = IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(
+    IRESEARCH_ICU_NAMESPACE::StringPiece(data.data(), static_cast<int32_t>(data.size())));
 
   byte_type raw_term_buf[MAX_TOKEN_SIZE];
   static_assert(sizeof raw_term_buf == sizeof state_->term_buf);
