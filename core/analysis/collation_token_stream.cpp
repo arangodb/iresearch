@@ -68,7 +68,7 @@ bool locale_from_slice(VPackSlice slice, IRESEARCH_ICU_NAMESPACE::Locale& locale
     IRESEARCH_ICU_NAMESPACE::Collator::createInstance(locale, err)};
 
   if (!collator) {
-    IRS_LOG_WARN(absl::StrCat("Can't instantiate IRESEARCH_ICU_NAMESPACE::Collator from locale: ",
+    IRS_LOG_WARN(absl::StrCat("Can't instantiate icu::Collator from locale: ",
                               locale_name));
     return false;
   }
@@ -77,7 +77,7 @@ bool locale_from_slice(VPackSlice slice, IRESEARCH_ICU_NAMESPACE::Locale& locale
   if (err != UErrorCode::U_ZERO_ERROR) {
     IRS_LOG(
       U_FAILURE(err) ? log::Level::kWarn : log::Level::kTrace,
-      absl::StrCat("Failure while instantiation of IRESEARCH_ICU_NAMESPACE::Collator from locale: ",
+      absl::StrCat("Failure while instantiation of icu::Collator from locale: ",
                    locale_name, ", ", u_errorName(err)));
   }
 

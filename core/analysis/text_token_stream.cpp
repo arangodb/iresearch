@@ -452,7 +452,7 @@ bool init_from_options(const analysis::text_token_stream::options_t& options,
 
     if (print_errors) {
       IRS_LOG_WARN(
-        absl::StrCat("Warning while instantiation IRESEARCH_ICU_NAMESPACE::Normalizer2 for "
+        absl::StrCat("Warning while instantiation icu::Normalizer2 for "
                      "text_token_stream from locale: ",
                      options.locale.getName(), ", ", u_errorName(err)));
     }
@@ -477,7 +477,7 @@ bool init_from_options(const analysis::text_token_stream::options_t& options,
 
       if (print_errors) {
         IRS_LOG_WARN(
-          absl::StrCat("Warning while instantiation IRESEARCH_ICU_NAMESPACE::Transliterator for "
+          absl::StrCat("Warning while instantiation icu::Transliterator for "
                        "text_token_stream from locale: ",
                        options.locale.getName(), ", ", u_errorName(err)));
       }
@@ -495,7 +495,7 @@ bool init_from_options(const analysis::text_token_stream::options_t& options,
 
     if (print_errors) {
       IRS_LOG_WARN(
-        absl::StrCat("Warning while instantiation IRESEARCH_ICU_NAMESPACE::BreakIterator for "
+        absl::StrCat("Warning while instantiation icu::BreakIterator for "
                      "text_token_stream from locale: ",
                      options.locale.getName(), ", ", u_errorName(err)));
     }
