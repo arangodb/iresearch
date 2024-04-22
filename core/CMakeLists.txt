@@ -428,7 +428,7 @@ if (CLANG_TIDY_EXE)
   )
 endif ()
 
-if (NOT (IRESEARCH_EXTERNAL_DEPENDENCIES STREQUAL ""))
+if (NOT ("${IRESEARCH_EXTERNAL_DEPENDENCIES}" STREQUAL ""))
   add_dependencies(iresearch-static ${IRESEARCH_EXTERNAL_DEPENDENCIES})
 endif()
 
@@ -507,7 +507,7 @@ target_link_libraries(iresearch-analyzer-text-static
   stemmer-static
   )
 
-if (NOT (IRESEARCH_EXTERNAL_DEPENDENCIES STREQUAL ""))
+if (NOT ("${IRESEARCH_EXTERNAL_DEPENDENCIES}" STREQUAL ""))
   add_dependencies(iresearch-analyzer-text-static ${IRESEARCH_EXTERNAL_DEPENDENCIES})
 endif()
 
@@ -538,7 +538,7 @@ target_link_libraries(iresearch-analyzer-collation-static
   iresearch-static
   )
 
-if (NOT (IRESEARCH_EXTERNAL_DEPENDENCIES STREQUAL ""))
+if (NOT ("${IRESEARCH_EXTERNAL_DEPENDENCIES}" STREQUAL ""))
   add_dependencies(iresearch-analyzer-collation-static ${IRESEARCH_EXTERNAL_DEPENDENCIES})
 endif()
 
@@ -591,7 +591,7 @@ target_link_libraries(iresearch-analyzer-norm-static
   iresearch-static
   )
 
-if (NOT (IRESEARCH_EXTERNAL_DEPENDENCIES STREQUAL ""))
+if (NOT ("${IRESEARCH_EXTERNAL_DEPENDENCIES}" STREQUAL ""))
   add_dependencies(iresearch-analyzer-norm-static ${IRESEARCH_EXTERNAL_DEPENDENCIES})
 endif()
 
@@ -625,7 +625,7 @@ target_link_libraries(iresearch-analyzer-stem-static
   stemmer-static
   )
 
-if (NOT (IRESEARCH_EXTERNAL_DEPENDENCIES STREQUAL ""))
+if (NOT ("${IRESEARCH_EXTERNAL_DEPENDENCIES}" STREQUAL ""))
   add_dependencies(iresearch-analyzer-stem-static ${IRESEARCH_EXTERNAL_DEPENDENCIES})
 endif()
 
