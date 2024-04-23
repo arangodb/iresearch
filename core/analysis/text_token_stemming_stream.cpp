@@ -39,7 +39,8 @@ using namespace irs;
 
 constexpr std::string_view LOCALE_PARAM_NAME{"locale"};
 
-bool locale_from_slice(VPackSlice slice, icu::Locale& locale) {
+bool locale_from_slice(VPackSlice slice,
+                       IRESEARCH_ICU_NAMESPACE::Locale& locale) {
   if (!slice.isString()) {
     IRS_LOG_WARN(absl::StrCat(
       "Non-string value in '", LOCALE_PARAM_NAME,
@@ -50,10 +51,10 @@ bool locale_from_slice(VPackSlice slice, icu::Locale& locale) {
 
   const auto locale_name = slice.copyString();
 
-  locale = icu::Locale::createFromName(locale_name.c_str());
+  locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName(locale_name.c_str());
 
   if (!locale.isBogus()) {
-    locale = icu::Locale{locale.getLanguage()};
+    locale = IRESEARCH_ICU_NAMESPACE::Locale{locale.getLanguage()};
   }
 
   if (locale.isBogus()) {

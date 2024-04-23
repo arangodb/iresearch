@@ -25,6 +25,10 @@
 
 #pragma once
 
+#ifndef IRESEARCH_ICU_NAMESPACE
+#define IRESEARCH_ICU_NAMESPACE icu
+#endif
+
 #include <unicode/locid.h>
 
 #include "analyzers.hpp"
@@ -53,7 +57,7 @@ class text_token_stream final : public TypedAnalyzer<text_token_stream>,
     // lowercase tokens, match original implementation
     case_convert_t case_convert{case_convert_t::LOWER};
     stopwords_t explicit_stopwords;
-    icu::Locale locale;
+    IRESEARCH_ICU_NAMESPACE::Locale locale;
     std::string stopwordsPath{
       0};  // string with zero char indicates 'no value set'
     size_t min_gram{};

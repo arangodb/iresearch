@@ -21,6 +21,10 @@
 /// @author Vasiliy Nabatchikov
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifndef IRESEARCH_ICU_NAMESPACE
+#define IRESEARCH_ICU_NAMESPACE icu
+#endif
+
 #include "analysis/ngram_token_stream.hpp"
 
 #include <unicode/locid.h>
@@ -297,7 +301,7 @@ TEST(ngram_token_stream_test, next_utf8) {
       ASSERT_FALSE(stream.next());
     };
 
-  auto locale = icu::Locale::createFromName("C.UTF-8");
+  auto locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName("C.UTF-8");
 
   {
     SCOPED_TRACE("1-gram");

@@ -23,6 +23,10 @@
 
 #pragma once
 
+#ifndef IRESEARCH_ICU_NAMESPACE
+#define IRESEARCH_ICU_NAMESPACE icu
+#endif
+
 #include <unicode/locid.h>
 
 #include "analyzers.hpp"
@@ -45,7 +49,7 @@ class normalizing_token_stream final
   enum case_convert_t { LOWER, NONE, UPPER };
 
   struct options_t {
-    icu::Locale locale;
+    IRESEARCH_ICU_NAMESPACE::Locale locale;
     case_convert_t case_convert{
       case_convert_t::NONE};  // no extra normalization
     bool accent{true};        // no extra normalization

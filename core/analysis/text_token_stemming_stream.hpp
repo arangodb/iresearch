@@ -23,6 +23,10 @@
 
 #pragma once
 
+#ifndef IRESEARCH_ICU_NAMESPACE
+#define IRESEARCH_ICU_NAMESPACE icu
+#endif
+
 #include <unicode/locid.h>
 
 #include "analyzers.hpp"
@@ -43,7 +47,7 @@ class stemming_token_stream final : public TypedAnalyzer<stemming_token_stream>,
                                     private util::noncopyable {
  public:
   struct options_t {
-    icu::Locale locale;
+    IRESEARCH_ICU_NAMESPACE::Locale locale;
 
     options_t() : locale{"C"} { locale.setToBogus(); }
   };
