@@ -22,7 +22,7 @@ set(IResearchTests_INCLUDE_DIR
 set(IReSearch_tests_sources
   # ./analysis/analyzer_test.cpp
 
-  # ./analysis/delimited_token_stream_tests.cpp
+  ./analysis/delimited_token_stream_tests.cpp
 
   # ./analysis/collation_token_stream_test.cpp
   # ./analysis/classification_stream_test.cpp
