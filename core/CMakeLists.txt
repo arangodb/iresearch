@@ -428,6 +428,10 @@ if (CLANG_TIDY_EXE)
   )
 endif ()
 
+if (NOT ("${IRESEARCH_EXTERNAL_DEPENDENCIES}" STREQUAL ""))
+  add_dependencies(iresearch-static ${IRESEARCH_EXTERNAL_DEPENDENCIES})
+endif()
+
 ################################################################################
 ### analysis plugin : delimiter
 ################################################################################
@@ -503,6 +507,10 @@ target_link_libraries(iresearch-analyzer-text-static
   stemmer-static
   )
 
+if (NOT ("${IRESEARCH_EXTERNAL_DEPENDENCIES}" STREQUAL ""))
+  add_dependencies(iresearch-analyzer-text-static ${IRESEARCH_EXTERNAL_DEPENDENCIES})
+endif()
+
 ################################################################################
 ### analysis plugin : collation token stream
 ################################################################################
@@ -529,6 +537,10 @@ set_target_properties(iresearch-analyzer-collation-static
 target_link_libraries(iresearch-analyzer-collation-static
   iresearch-static
   )
+
+if (NOT ("${IRESEARCH_EXTERNAL_DEPENDENCIES}" STREQUAL ""))
+  add_dependencies(iresearch-analyzer-collation-static ${IRESEARCH_EXTERNAL_DEPENDENCIES})
+endif()
 
 ################################################################################
 ### analysis plugin : minhash
@@ -579,6 +591,10 @@ target_link_libraries(iresearch-analyzer-norm-static
   iresearch-static
   )
 
+if (NOT ("${IRESEARCH_EXTERNAL_DEPENDENCIES}" STREQUAL ""))
+  add_dependencies(iresearch-analyzer-norm-static ${IRESEARCH_EXTERNAL_DEPENDENCIES})
+endif()
+
 ################################################################################
 ### analysis plugin : text token stemming
 ################################################################################
@@ -608,6 +624,10 @@ target_link_libraries(iresearch-analyzer-stem-static
   iresearch-static
   stemmer-static
   )
+
+if (NOT ("${IRESEARCH_EXTERNAL_DEPENDENCIES}" STREQUAL ""))
+  add_dependencies(iresearch-analyzer-stem-static ${IRESEARCH_EXTERNAL_DEPENDENCIES})
+endif()
 
 ################################################################################
 ### analysis plugin : token stopwords

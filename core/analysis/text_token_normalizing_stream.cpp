@@ -53,11 +53,12 @@ namespace analysis {
 // -----------------------------------------------------------------------------
 
 struct normalizing_token_stream::state_t {
-  icu::UnicodeString data;
-  icu::UnicodeString token;
+  IRESEARCH_ICU_NAMESPACE::UnicodeString data;
+  IRESEARCH_ICU_NAMESPACE::UnicodeString token;
   std::string term_buf;
-  const icu::Normalizer2* normalizer;  // reusable object owned by ICU
-  std::unique_ptr<icu::Transliterator> transliterator;
+  const IRESEARCH_ICU_NAMESPACE::Normalizer2*
+    normalizer;  // reusable object owned by ICU
+  std::unique_ptr<IRESEARCH_ICU_NAMESPACE::Transliterator> transliterator;
   const options_t options;
 
   explicit state_t(const options_t& opts) : normalizer{}, options{opts} {}
@@ -82,7 +83,8 @@ constexpr frozen::unordered_map<
     {"upper", analysis::normalizing_token_stream::UPPER},
 };
 
-bool locale_from_slice(VPackSlice slice, icu::Locale& locale) {
+bool locale_from_slice(VPackSlice slice,
+                       IRESEARCH_ICU_NAMESPACE::Locale& locale) {
   if (!slice.isString()) {
     IRS_LOG_WARN(
       absl::StrCat("Non-string value in '", LOCALE_PARAM_NAME,
@@ -94,11 +96,11 @@ bool locale_from_slice(VPackSlice slice, icu::Locale& locale) {
 
   const auto locale_name = slice.copyString();
 
-  locale = icu::Locale::createFromName(locale_name.c_str());
+  locale = IRESEARCH_ICU_NAMESPACE::Locale::createFromName(locale_name.c_str());
 
   if (!locale.isBogus()) {
-    locale = icu::Locale{locale.getLanguage(), locale.getCountry(),
-                         locale.getVariant()};
+    locale = IRESEARCH_ICU_NAMESPACE::Locale{
+      locale.getLanguage(), locale.getCountry(), locale.getVariant()};
   }
 
   if (locale.isBogus()) {
@@ -349,7 +351,8 @@ bool normalizing_token_stream::reset(std::string_view data) {
 
   if (!state_->normalizer) {
     // reusable object owned by ICU
-    state_->normalizer = icu::Normalizer2::getNFCInstance(err);
+    state_->normalizer =
+      IRESEARCH_ICU_NAMESPACE::Normalizer2::getNFCInstance(err);
 
     if (!U_SUCCESS(err) || !state_->normalizer) {
       state_->normalizer = nullptr;
@@ -362,12 +365,13 @@ bool normalizing_token_stream::reset(std::string_view data) {
     // transliteration rule taken verbatim from:
     // http://userguide.icu-project.org/transforms/general do not allocate
     // statically since it causes memory leaks in ICU
-    const icu::UnicodeString collationRule(
+    const IRESEARCH_ICU_NAMESPACE::UnicodeString collationRule(
       "NFD; [:Nonspacing Mark:] Remove; NFC");
 
     // reusable object owned by *this
-    state_->transliterator.reset(icu::Transliterator::createInstance(
-      collationRule, UTransDirection::UTRANS_FORWARD, err));
+    state_->transliterator.reset(
+      IRESEARCH_ICU_NAMESPACE::Transliterator::createInstance(
+        collationRule, UTransDirection::UTRANS_FORWARD, err));
 
     if (!U_SUCCESS(err) || !state_->transliterator) {
       state_->transliterator.reset();
@@ -382,8 +386,9 @@ bool normalizing_token_stream::reset(std::string_view data) {
     return false;
   }
 
-  state_->data = icu::UnicodeString::fromUTF8(
-    icu::StringPiece{data.data(), static_cast<int32_t>(data.size())});
+  state_->data = IRESEARCH_ICU_NAMESPACE::UnicodeString::fromUTF8(
+    IRESEARCH_ICU_NAMESPACE::StringPiece{data.data(),
+                                         static_cast<int32_t>(data.size())});
 
   // normalize unicode
   state_->normalizer->normalize(state_->data, state_->token, err);
