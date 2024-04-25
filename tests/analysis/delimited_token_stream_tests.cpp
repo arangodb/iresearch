@@ -23,7 +23,6 @@
 
 #include "analysis/delimited_token_stream.hpp"
 #include "gtest/gtest.h"
-#include "tests_config.hpp"
 #include "velocypack/Parser.h"
 #include "velocypack/velocypack-aliases.h"
 

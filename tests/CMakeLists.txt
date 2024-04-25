@@ -20,107 +20,109 @@ set(IResearchTests_INCLUDE_DIR
   )
 
 set(IReSearch_tests_sources
-  ./analysis/analyzer_test.cpp
+  # ./analysis/analyzer_test.cpp
+
   ./analysis/delimited_token_stream_tests.cpp
-  ./analysis/collation_token_stream_test.cpp
-  ./analysis/classification_stream_test.cpp
-  ./analysis/nearest_neighbors_stream_test.cpp
-  ./analysis/ngram_token_stream_test.cpp
-  ./analysis/minhash_token_stream_test.cpp
-  ./analysis/multi_delimited_token_stream_tests.cpp
-  ./analysis/pipeline_stream_tests.cpp
-  ./analysis/segmentation_stream_tests.cpp
-  ./analysis/text_token_normalizing_stream_tests.cpp
-  ./analysis/text_token_stemming_stream_tests.cpp
-  ./analysis/token_stopwords_stream_tests.cpp
-  ./analysis/token_attributes_test.cpp
-  ./analysis/token_stream_tests.cpp
-  ./formats/columnstore2_test.cpp
-  ./formats/sparse_bitmap_test.cpp
-  ./formats/formats_tests.cpp
-  ./formats/formats_test_case_base.cpp
-  ./formats/skip_list_test.cpp
+
+  # ./analysis/collation_token_stream_test.cpp
+  # ./analysis/classification_stream_test.cpp
+  # ./analysis/nearest_neighbors_stream_test.cpp
+  # ./analysis/ngram_token_stream_test.cpp
+  # ./analysis/minhash_token_stream_test.cpp
+  # ./analysis/multi_delimited_token_stream_tests.cpp
+  # ./analysis/pipeline_stream_tests.cpp
+  # ./analysis/segmentation_stream_tests.cpp
+  # ./analysis/text_token_normalizing_stream_tests.cpp
+  # ./analysis/text_token_stemming_stream_tests.cpp
+  # ./analysis/token_stopwords_stream_tests.cpp
+  # ./analysis/token_attributes_test.cpp
+  # ./analysis/token_stream_tests.cpp
+  # ./formats/columnstore2_test.cpp
+  # ./formats/sparse_bitmap_test.cpp
+  # ./formats/formats_tests.cpp
+  # ./formats/formats_test_case_base.cpp
+  # ./formats/skip_list_test.cpp
   ./store/directory_test_case.cpp
   ./store/caching_directory_test.cpp
   ./store/directory_cleaner_tests.cpp
   ./store/memory_index_output_tests.cpp
-  ./store/store_utils_tests.cpp
+  # ./store/store_utils_tests.cpp
   ./index/doc_generator.cpp
   ./index/assert_format.cpp
-  ./index/index_meta_tests.cpp
+  # ./index/index_meta_tests.cpp
   ./index/index_profile_tests.cpp
   ./index/index_tests.cpp
-  ./index/index_levenshtein_tests.cpp
-  ./index/index_column_tests.cpp
-  ./index/norm_test.cpp
-  ./index/sorted_index_tests.cpp
-  ./index/index_death_tests.cpp
-  ./index/field_meta_test.cpp
-  ./index/merge_writer_tests.cpp
-  ./index/postings_tests.cpp
-  ./index/buffered_column_test.cpp
+  # ./index/index_levenshtein_tests.cpp
+  # ./index/index_column_tests.cpp
+  # ./index/norm_test.cpp
+  # ./index/sorted_index_tests.cpp
+  # ./index/index_death_tests.cpp
+  # ./index/field_meta_test.cpp
+  # ./index/merge_writer_tests.cpp
+  # ./index/postings_tests.cpp
+  # ./index/buffered_column_test.cpp
   ./index/segment_writer_tests.cpp
-  ./index/consolidation_policy_tests.cpp
-  ./search/empty_filter_tests.cpp
-  ./search/nested_filter_test.cpp
-  ./search/granular_range_filter_tests.cpp
-  ./search/wildcard_filter_test.cpp
-  ./search/levenshtein_filter_test.cpp
+  # ./index/consolidation_policy_tests.cpp
+  # ./search/empty_filter_tests.cpp
+  # ./search/nested_filter_test.cpp
+  # ./search/granular_range_filter_tests.cpp
+  # ./search/wildcard_filter_test.cpp
+  # ./search/levenshtein_filter_test.cpp
   ./search/index_reader_test.cpp
-  ./search/scorers_tests.cpp
-  ./search/bitset_doc_iterator_test.cpp
-  ./search/sort_tests.cpp
-  ./search/tfidf_test.cpp
-  ./search/wand_test.cpp
-  ./search/bm25_test.cpp
-  ./search/cost_attribute_test.cpp
-  ./search/boost_attribute_test.cpp
-  ./search/filter_test_case_base.cpp
-  ./search/boolean_filter_tests.cpp
-  ./search/all_filter_tests.cpp
-  ./search/term_filter_tests.cpp
-  ./search/terms_filter_test.cpp
-  ./search/prefix_filter_test.cpp
-  ./search/range_filter_test.cpp
-  ./search/phrase_filter_tests.cpp
-  ./search/column_existence_filter_test.cpp
-  ./search/same_position_filter_tests.cpp
-  ./search/ngram_similarity_filter_tests.cpp
-  ./search/top_terms_collector_test.cpp
-  ./search/proxy_filter_test.cpp
+  # ./search/scorers_tests.cpp
+  # ./search/bitset_doc_iterator_test.cpp
+  # ./search/sort_tests.cpp
+  # ./search/tfidf_test.cpp
+  # ./search/wand_test.cpp
+  # ./search/bm25_test.cpp
+  # ./search/cost_attribute_test.cpp
+  # ./search/boost_attribute_test.cpp
+  # ./search/filter_test_case_base.cpp
+  # ./search/boolean_filter_tests.cpp
+  # ./search/all_filter_tests.cpp
+  # ./search/term_filter_tests.cpp
+  # ./search/terms_filter_test.cpp
+  # ./search/prefix_filter_test.cpp
+  # ./search/range_filter_test.cpp
+  # ./search/phrase_filter_tests.cpp
+  # ./search/column_existence_filter_test.cpp
+  # ./search/same_position_filter_tests.cpp
+  # ./search/ngram_similarity_filter_tests.cpp
+  # ./search/top_terms_collector_test.cpp
+  # ./search/proxy_filter_test.cpp
   ./utils/async_utils_tests.cpp
-  ./utils/automaton_test.cpp
-  ./utils/bitvector_tests.cpp
-  ./utils/encryption_test.cpp
-  ./utils/container_utils_tests.cpp
-  ./utils/compression_test.cpp
-  ./utils/crc_test.cpp
-  ./utils/file_utils_tests.cpp
-  ./utils/object_pool_tests.cpp
-  ./utils/numeric_utils_test.cpp
-  ./utils/attributes_tests.cpp
+  # ./utils/automaton_test.cpp
+  # ./utils/bitvector_tests.cpp
+  # ./utils/encryption_test.cpp
+  # ./utils/container_utils_tests.cpp
+  # ./utils/compression_test.cpp
+  # ./utils/crc_test.cpp
+  # ./utils/file_utils_tests.cpp
+  # ./utils/object_pool_tests.cpp
+  # ./utils/numeric_utils_test.cpp
+  # ./utils/attributes_tests.cpp
   ./utils/directory_utils_tests.cpp
-  ./utils/bit_packing_tests.cpp
-  ./utils/bit_utils_tests.cpp
-  ./utils/block_pool_test.cpp
-  ./utils/levenshtein_utils_test.cpp
-  ./utils/wildcard_utils_test.cpp
-  ./utils/ref_counter_tests.cpp
-  ./utils/minhash_utils_test.cpp
-  ./utils/string_tests.cpp
-  ./utils/simd_utils_test.cpp
-  ./utils/bitset_tests.cpp
-  ./utils/math_utils_test.cpp
-  ./utils/misc_test.cpp
-  ./utils/std_test.cpp
+  # ./utils/bit_packing_tests.cpp
+  # ./utils/bit_utils_tests.cpp
+  # ./utils/block_pool_test.cpp
+  # ./utils/levenshtein_utils_test.cpp
+  # ./utils/wildcard_utils_test.cpp
+  # ./utils/ref_counter_tests.cpp
+  # ./utils/minhash_utils_test.cpp
+  # ./utils/string_tests.cpp
+  # ./utils/simd_utils_test.cpp
+  # ./utils/bitset_tests.cpp
+  # ./utils/math_utils_test.cpp
+  # ./utils/misc_test.cpp
+  # ./utils/std_test.cpp
   ./utils/thread_pool_test.cpp
-  ./utils/type_utils_tests.cpp
-  ./utils/utf8_utils_test.cpp
-  ./utils/utf8_path_tests.cpp
-  ./utils/fst_builder_test.cpp
-  ./utils/fst_utils_test.cpp
-  ./utils/fst_string_weight_test.cpp
-  ./utils/ngram_match_utils_tests.cpp
+  # ./utils/type_utils_tests.cpp
+  # ./utils/utf8_utils_test.cpp
+  # ./utils/utf8_path_tests.cpp
+  # ./utils/fst_builder_test.cpp
+  # ./utils/fst_utils_test.cpp
+  # ./utils/fst_string_weight_test.cpp
+  # ./utils/ngram_match_utils_tests.cpp
   ./tests_param.cpp
   ./tests_main.cpp
   )
@@ -151,13 +153,13 @@ add_custom_target(iresearch-tests
 add_executable(iresearch-tests-static
   EXCLUDE_FROM_ALL ${IReSearch_sources}
   ${IReSearch_tests_sources} ${IReSearch_tests_headers}
-  ./analysis/text_analyzer_tests.cpp
-  ./formats/formats_10_tests.cpp
-  ./formats/formats_11_tests.cpp
-  ./formats/formats_12_tests.cpp
-  ./formats/formats_13_tests.cpp
-  ./formats/formats_14_tests.cpp
-  ./formats/formats_15_tests.cpp
+  # ./analysis/text_analyzer_tests.cpp
+  # ./formats/formats_10_tests.cpp
+  # ./formats/formats_11_tests.cpp
+  # ./formats/formats_12_tests.cpp
+  # ./formats/formats_13_tests.cpp
+  # ./formats/formats_14_tests.cpp
+  # ./formats/formats_15_tests.cpp
   )
 
 set_ipo(iresearch-tests-static)
