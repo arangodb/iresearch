@@ -591,13 +591,13 @@ class index_profile_test_case : public tests::index_test_base {
   }
 };
 
-// TEST_P(index_profile_test_case, profile_bulk_index_singlethread_full_mt) {
-//   profile_bulk_index(0, 0, 0, 0);
-// }
+TEST_P(index_profile_test_case, profile_bulk_index_singlethread_full_mt) {
+  profile_bulk_index(0, 0, 0, 0);
+}
 
-// TEST_P(index_profile_test_case, profile_bulk_index_singlethread_batched_mt) {
-//   profile_bulk_index(0, 0, 0, 10000);
-// }
+TEST_P(index_profile_test_case, profile_bulk_index_singlethread_batched_mt) {
+  profile_bulk_index(0, 0, 0, 10000);
+}
 
 TEST_P(index_profile_test_case, profile_bulk_index_multithread_cleanup_mt) {
   tests::dir_param_f factory;
@@ -652,16 +652,16 @@ TEST_P(index_profile_test_case,
   profile_bulk_index(16, 0, 5, 10000);  // 5 does not divide evenly into 16
 }
 
-// TEST_P(index_profile_test_case, profile_bulk_index_singlethread_full_mt_tick) {
-//   SetOnTick(true);
-//   profile_bulk_index(0, 0, 0, 0);
-// }
+TEST_P(index_profile_test_case, profile_bulk_index_singlethread_full_mt_tick) {
+  SetOnTick(true);
+  profile_bulk_index(0, 0, 0, 0);
+}
 
-// TEST_P(index_profile_test_case,
-//        profile_bulk_index_singlethread_batched_mt_tick) {
-//   SetOnTick(true);
-//   profile_bulk_index(0, 0, 0, 10000);
-// }
+TEST_P(index_profile_test_case,
+       profile_bulk_index_singlethread_batched_mt_tick) {
+  SetOnTick(true);
+  profile_bulk_index(0, 0, 0, 10000);
+}
 
 TEST_P(index_profile_test_case,
        profile_bulk_index_multithread_cleanup_mt_tick) {
