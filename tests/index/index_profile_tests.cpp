@@ -737,5 +737,5 @@ static constexpr auto kTestDirs = tests::getDirectories<tests::kTypesDefault>();
 INSTANTIATE_TEST_SUITE_P(
   index_profile_test, index_profile_test_case,
   ::testing::Combine(::testing::ValuesIn(kTestDirs),
-                     ::testing::Values("1_3")),
+                     ::testing::Values("1_0", "1_2", "1_3", "1_4", "1_5")),
   index_profile_test_case::to_string);
