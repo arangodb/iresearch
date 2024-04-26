@@ -21,13 +21,11 @@
 /// @author Vasiliy Nabatchikov
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <thread>
-
 #include "index_tests.hpp"
+#include "gtest/gtest.h"
+#include <thread>
 #include "search/term_filter.hpp"
-#include "store/fs_directory.hpp"
 #include "store/memory_directory.hpp"
-#include "store/mmap_directory.hpp"
 #include "utils/file_utils.hpp"
 #include "utils/index_utils.hpp"
 
