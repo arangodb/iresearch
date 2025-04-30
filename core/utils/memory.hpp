@@ -524,7 +524,7 @@ struct maker<Class, false> {
   static ptr make(Args&&... args) {                                           \
     using type = std::enable_if_t<std::is_base_of_v<class_name, Type>, Type>; \
     using maker_t = irs::memory::maker<type>;                                 \
-    return maker_t::template make(std::forward<Args>(args)...);               \
+    return maker_t::template make<>(std::forward<Args>(args)...);               \
   }                                                                           \
   template<typename Class, bool>                                              \
   friend struct irs::memory::maker

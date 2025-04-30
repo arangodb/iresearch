@@ -34,6 +34,7 @@
 
 #include <cstdlib>
 #include <numeric>
+#include <limits>
 
 namespace irs {
 
