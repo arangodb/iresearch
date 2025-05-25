@@ -24,8 +24,10 @@
 
 #ifdef _WIN32
 #include <Windows.h>
-#include <process.h>  // _getpid
-#include <tlhelp32.h>
+#include <process.h>  // _ge
+#include <limits>
+#include <tlhelp32.h>  // CreateToolhelp32Snapshot, Process32First, Process32Next
+
 #else
 #include <unistd.h>  // getpid
 
