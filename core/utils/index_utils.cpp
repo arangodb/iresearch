@@ -28,148 +28,73 @@
 
 #include "formats/format_utils.hpp"
 
-namespace {
-
-// Returns percentage of live documents
-inline double FillFactor(const irs::SegmentInfo& segment) noexcept {
-  return static_cast<double>(segment.live_docs_count) /
-         static_cast<double>(segment.docs_count);
-}
-
-// Returns approximated size of a segment in the absence of removals
-inline size_t SizeWithoutRemovals(const irs::SegmentInfo& segment) noexcept {
-  return size_t(static_cast<double>(segment.byte_size) * FillFactor(segment));
-}
-
 namespace tier {
 
-struct SegmentStats {
-  // cppcheck-suppress noExplicitConstructor
-  SegmentStats(const irs::SubReader& reader) noexcept
-    : reader{&reader},
-      meta{&reader.Meta()},
-      size{SizeWithoutRemovals(*meta)},
-      fill_factor{FillFactor(*meta)} {}
+  //  ConsolidationConfig static constants.
+  const size_t ConsolidationConfig::candidate_size { 4 }; //  consolidation window size
+  const size_t ConsolidationConfig::tier1 { 1 << 22 };    //  4 MB
+  const double ConsolidationConfig::maxMergeScore { 1.5 };  //  Skip consolidation if candidate score is greater
 
-  bool operator<(const SegmentStats& rhs) const noexcept {
-    // cppcheck-suppress constVariable
-    auto& lhs = *this;
+  ConsolidationCandidate::ConsolidationCandidate(
+    iterator_t start,
+    iterator_t end) noexcept
+  : segments(start, end) {
 
-    if (lhs.size == rhs.size) {
-      if (lhs.fill_factor > rhs.fill_factor) {
-        return true;
-      } else if (lhs.fill_factor < rhs.fill_factor) {
-        return false;
-      }
+    initialized = true;
 
-      return lhs.meta->name < rhs.meta->name;
-    }
+    //  Calculate initial cost
+    auto itr = start;
+    do
+    {
+      auto itrMeta = itr->meta;
 
-    return lhs.size < rhs.size;
+      mergeBytes += itrMeta->byte_size;
+      skew = static_cast<double>(itrMeta->byte_size) / mergeBytes;
+      delCount += (itrMeta->docs_count - itrMeta->live_docs_count);
+      mergeScore = skew + (1.0 / (1 + delCount));
+      cost = mergeBytes * mergeScore;
+
+    } while (itr++ != end);
   }
 
-  operator const irs::SubReader*() const noexcept { return reader; }
+  //  Caller is responsible for ensuring that
+  //  the segment iterators aren't past the
+  //  last element before calling advance().
+  void ConsolidationCandidate::advance() noexcept {
+    if (!initialized)
+      return;
 
-  const irs::SubReader* reader;
-  const irs::SegmentInfo* meta;
-  size_t size;  // approximate size of segment without removals
-  double_t fill_factor;
-};
+    const auto& removeMeta = segments.first->meta;
+    const auto& addMeta = (segments.second + 1)->meta;
 
-struct ConsolidationCandidate {
-  using iterator_t = std::vector<SegmentStats>::const_iterator;
-  using range_t = std::pair<iterator_t, iterator_t>;
+    std::advance(segments.first, 1);
+    std::advance(segments.second, 1);
 
-  explicit ConsolidationCandidate(iterator_t i) noexcept : segments(i, i) {}
+    auto getDelCount = [](const irs::SegmentInfo* itemMeta) {
+      return (itemMeta->docs_count - itemMeta->live_docs_count);
+    };
 
-  iterator_t begin() const noexcept { return segments.first; }
-  iterator_t end() const noexcept { return segments.second; }
-
-  range_t segments;
-  size_t count{0};
-  size_t size{0};           // estimated size of the level
-  double_t score{DBL_MIN};  // how good this permutation is
-};
-
-/// @returns score of the consolidation bucket
-double_t consolidation_score(const ConsolidationCandidate& consolidation,
-                             const size_t segments_per_tier,
-                             const size_t floor_segment_bytes) noexcept {
-  // to detect how skewed the consolidation we do the following:
-  // 1. evaluate coefficient of variation, less is better
-  // 2. good candidates are in range [0;1]
-  // 3. favor condidates where number of segments is equal to
-  // 'segments_per_tier' approx
-  // 4. prefer smaller consolidations
-  // 5. prefer consolidations which clean removals
-
-  switch (consolidation.count) {
-    case 0:
-      // empty consolidation makes not sense
-      return DBL_MIN;
-    case 1: {
-      auto& meta = *consolidation.segments.first->meta;
-
-      if (meta.docs_count == meta.live_docs_count) {
-        // singletone without removals makes no sense
-        return DBL_MIN;
-      }
-
-      // FIXME honor number of deletes???
-      // signletone with removals makes sense if nothing better is found
-      return DBL_MIN + DBL_EPSILON;
-    }
+    mergeBytes = mergeBytes - removeMeta->byte_size + addMeta->byte_size;
+    skew = static_cast<double>(addMeta->byte_size) / mergeBytes;
+    delCount = delCount - getDelCount(removeMeta) + getDelCount(addMeta);
+    mergeScore = skew + (1 / (1 + delCount));
+    cost = mergeBytes * mergeScore;
   }
 
-  size_t size_before_consolidation = 0;
-  size_t size_after_consolidation = 0;
-  size_t size_after_consolidation_floored = 0;
-  for (auto& segment_stat : consolidation) {
-    size_before_consolidation += segment_stat.meta->byte_size;
-    size_after_consolidation += segment_stat.size;
-    size_after_consolidation_floored +=
-      std::max(segment_stat.size, floor_segment_bytes);
-  }
+//  Currently we're using powers of 4 to define tiers,
+//  with the smallest tier being 0-4MB. We select subsequent
+//  tiers by multiplying the last tier by 4.
+//  So we get 0-4MB, 4MB-16MB and so on.
+size_t getConsolidationTier(size_t num) {
 
-  // evaluate coefficient of variation
-  double sum_square_differences = 0;
-  const auto segment_size_after_consolidaton_mean =
-    static_cast<double>(size_after_consolidation_floored) /
-    static_cast<double>(consolidation.count);
-  for (auto& segment_stat : consolidation) {
-    const auto diff =
-      static_cast<double>(std::max(segment_stat.size, floor_segment_bytes)) -
-      segment_size_after_consolidaton_mean;
-    sum_square_differences += diff * diff;
-  }
+  size_t nextTier = ConsolidationConfig::tier1;
+  while (nextTier < num)
+    nextTier = nextTier << 2;
 
-  const auto stdev = std::sqrt(sum_square_differences /
-                               static_cast<double>(consolidation.count));
-  const auto cv = (stdev / segment_size_after_consolidaton_mean);
-
-  // evaluate initial score
-  auto score = 1. - cv;
-
-  // favor consolidations that contain approximately the requested number of
-  // segments
-  score *= std::pow(static_cast<double>(consolidation.count) /
-                      static_cast<double>(segments_per_tier),
-                    1.5);
-
-  // FIXME use relative measure, e.g. cosolidation_size/total_size
-  // carefully prefer smaller consolidations over the bigger ones
-  score /= std::pow(size_after_consolidation, 0.5);
-
-  // favor consolidations which clean out removals
-  score /= std::pow(static_cast<double>(size_after_consolidation) /
-                      static_cast<double>(size_before_consolidation),
-                    2);
-
-  return score;
+  return nextTier;
 }
 
 }  // namespace tier
-}  // namespace
 
 namespace irs::index_utils {
 
@@ -391,6 +316,9 @@ ConsolidationPolicy MakePolicy(const ConsolidateTier& options) {
     /// if
     /// - segment size is greater than 'max_segments_bytes / 2'
     /// - segment has many documents but only few deletions
+    ///
+    /// TODO - too_big_segments_threshold formula is unreasonable
+    ///      - add unit tests as well
     ///////////////////////////////////////////////////////////////////////////
 
     const double_t total_fill_factor =
@@ -413,63 +341,36 @@ ConsolidationPolicy MakePolicy(const ConsolidateTier& options) {
       }
     }
 
+    //  No point in attempting consolidation if we don't have
+    //  enough segments to fill the consolidation window
+    if (sorted_segments.size() < tier::ConsolidationConfig::candidate_size)
+      return;
+
     ///////////////////////////////////////////////////////////////////////////
     /// Stage 3
-    /// sort candidates
+    /// sort candidates and organize them into tiers
     ///////////////////////////////////////////////////////////////////////////
 
     std::sort(sorted_segments.begin(), sorted_segments.end());
 
+    auto getSegmentSize = [](const tier::SegmentStats& segment) {
+      return segment.meta->byte_size;
+    };
+
+    auto tiers = tier::mapToTiers(sorted_segments, getSegmentSize);
+
     ///////////////////////////////////////////////////////////////////////////
     /// Stage 4
-    /// find proper candidates
+    /// Find best candidate for consolidation.
     ///////////////////////////////////////////////////////////////////////////
 
-    tier::ConsolidationCandidate best(sorted_segments.begin());
-
-    if (sorted_segments.size() >= min_segments_per_tier) {
-      for (auto i = sorted_segments.begin(), end = sorted_segments.end();
-           i != end; ++i) {
-        tier::ConsolidationCandidate candidate(i);
-
-        while (candidate.segments.second != end &&
-               candidate.count < max_segments_per_tier) {
-          candidate.size += candidate.segments.second->size;
-
-          if (candidate.size > max_segments_bytes) {
-            // overcome the limit
-            break;
-          }
-
-          ++candidate.count;
-          ++candidate.segments.second;
-
-          if (candidate.count < min_segments_per_tier) {
-            // not enough segments yet
-            continue;
-          }
-
-          candidate.score = tier::consolidation_score(
-            candidate, max_segments_per_tier, floor_segment_bytes);
-
-          if (candidate.score < min_score) {
-            // score is too small
-            continue;
-          }
-
-          if (best.score < candidate.score) {
-            best = candidate;
-          }
-        }
-      }
+    tier::ConsolidationCandidate best;
+    auto ret = tier::findBestConsolidationCandidate<tier::SegmentStats>(tiers, max_segments_bytes, best);
+    if (!ret) {
+      return;
     }
 
-    ///////////////////////////////////////////////////////////////////////////
-    /// Stage 4
-    /// pick the best candidate
-    ///////////////////////////////////////////////////////////////////////////
-
-    std::copy(best.begin(), best.end(), std::back_inserter(candidates));
+    std::copy(best.first(), best.last() + 1, std::back_inserter(candidates));
   };
 }
 
