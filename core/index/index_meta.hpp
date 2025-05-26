@@ -39,6 +39,15 @@ class format;
 class IndexWriter;
 
 struct SegmentInfo {
+  SegmentInfo() = default;
+
+  //  Added for testing purposes.
+  SegmentInfo(
+    const std::string& _name,
+    uint64_t _byte_size
+  ) : name(_name), byte_size(_byte_size)
+  {}
+
   bool operator==(const SegmentInfo&) const = default;
 
   std::string name;            // FIXME(gnusi): move to SegmentMeta
