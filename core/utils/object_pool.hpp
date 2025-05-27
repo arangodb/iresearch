@@ -27,6 +27,7 @@
 #include <functional>
 #include <utility>
 #include <vector>
+#include <chrono>
 
 #include "async_utils.hpp"
 #include "memory.hpp"
