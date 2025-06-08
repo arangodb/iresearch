@@ -29,6 +29,36 @@
 
 using namespace irs;
 
+struct LargeData {
+    char data[1024];
+};
+
+TEST(IResearchMemoryLimitTest, no_limit_set_allows_infinite_allocations) {
+
+    //  The expectation is to allow potentially infinite allocations
+    //  even if we're testing with just 1MB.
+
+    //  allocate vector
+    ManagedVector<LargeData> vec;
+
+    for (size_t i = 0; i < 1024; i++) {
+        ASSERT_NO_THROW(vec.push_back(LargeData()));
+    }
+}
+
+TEST(IResearchMemoryLimitTest, zero_limit_allow_infinite_allocations) {
+
+    auto memoryMgr = IResearchMemoryManager::GetInstance();
+    memoryMgr->SetMemoryLimit(0);
+
+    //  allocate vector
+    ManagedVector<LargeData> vec;
+
+    for (size_t i = 0; i < 1024; i++) {
+        ASSERT_NO_THROW(vec.push_back(LargeData()));
+    }
+}
+
 TEST(IResearchMemoryLimitTest, managed_allocator_smoke_test) {
 
     auto memoryMgr = IResearchMemoryManager::GetInstance();
