@@ -74,6 +74,8 @@ struct ResourceManagementOptions {
   IResourceManager* cached_columns{&IResourceManager::kNoop};
 };
 
+//  Memory manager for IResearch.
+//  This is a singleton class
 struct IResearchMemoryManager : public IResourceManager {
 protected:
   IResearchMemoryManager() = default;
@@ -86,19 +88,19 @@ public:
     IRS_ASSERT(this != &kForbidden);
     IRS_ASSERT(value >= 0);
 
-    if (0 == IResearchMemoryManager::_memory_limit) {
+    if (0 == _memoryLimit) {
       // since we have no limit, we can simply use fetch-add for the increment
-      IResearchMemoryManager::_current.fetch_add(value, std::memory_order_relaxed);
+      _current.fetch_add(value, std::memory_order_relaxed);
     } else {
       // we only want to perform the update if we don't exceed the limit!
-      std::uint64_t cur = IResearchMemoryManager::_current.load(std::memory_order_relaxed);
+      std::uint64_t cur = _current.load(std::memory_order_relaxed);
       std::uint64_t next;
       do {
         next = cur + value;
-        if (IRS_UNLIKELY(next > IResearchMemoryManager::_memory_limit.load(std::memory_order_relaxed))) {
+        if (IRS_UNLIKELY(next > _memoryLimit.load(std::memory_order_relaxed))) {
           throw std::bad_alloc();
         }
-      } while (!IResearchMemoryManager::_current.compare_exchange_weak(
+      } while (!_current.compare_exchange_weak(
         cur, next, std::memory_order_relaxed));
     }
   }
@@ -109,28 +111,30 @@ public:
     _current.fetch_sub(value, std::memory_order_relaxed);
   }
 
-protected:
-  //  This limit can be set only by IResearchFeature.
-  //  During IResearchFeature::prepare() it is set to a pre-defined
-  //  percentage of the total available physical memory or to the value
-  //  of ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY option if specified.
-  static inline std::atomic<std::uint64_t> _memory_limit = { 0 };
-
-  //  Singleton
-  static inline std::shared_ptr<IResourceManager> _instance;
+  //  NOTE: IResearchFeature owns and manages this memory limit.
+  //  That is why this method should only be used by IResearchFeature.
+  virtual void SetMemoryLimit(uint64_t memoryLimit) {
+    _memoryLimit.store(memoryLimit);
+  }
 
 private:
-  static inline std::atomic<std::uint64_t> _current = { 0 };
+  //  This limit should be set exclusively by IResearchFeature.
+  //  During IResearchFeature::validateOptions() this limit is set to a
+  //  percentage of either the total available physical memory or the value
+  //  of ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY envvar if specified.
+  std::atomic<std::uint64_t> _memoryLimit = { 0 };
+  std::atomic<std::uint64_t> _current = { 0 };
+
+  //  Singleton
+  static inline std::shared_ptr<IResearchMemoryManager> _instance;
 
 public:
-  static std::shared_ptr<IResourceManager> GetInstance() {
+  static std::shared_ptr<IResearchMemoryManager> GetInstance() {
     if (!_instance.get())
       _instance.reset(new IResearchMemoryManager());
 
     return _instance;
   }
-
-  friend class arangodb::iresearch::IResearchFeature;
 };
 
 template<typename T>

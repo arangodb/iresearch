@@ -29,72 +29,24 @@
 
 using namespace irs;
 
-//  Wrapper class around IResearchMemoryManager.
-//  We use it to track memory increase/decrease.
-//  To be used mostly for debugging purposes.
-struct IResearchMemoryManagerAccessor : public irs::IResearchMemoryManager {
+TEST(IResearchMemoryLimitTest, managed_allocator_smoke_test) {
 
-    IResearchMemoryManagerAccessor() = default;
-    virtual ~IResearchMemoryManagerAccessor() = default;
-
-    virtual void Increase([[maybe_unused]] uint64_t value) override {
-
-        // std::cout << "Increase: " << value << std::endl;
-        IResearchMemoryManager::Increase(value);
-    }
-
-    virtual void Decrease([[maybe_unused]] uint64_t value) noexcept override {
-        // std::cout << "Decrease: " << value << std::endl;
-        IResearchMemoryManager::Decrease(value);
-    }
-
-    static std::shared_ptr<IResearchMemoryManagerAccessor> GetInstance() {
-        if (!_accessor)
-            _accessor.reset(new IResearchMemoryManagerAccessor());
-
-        return _accessor;
-    }
-
-    static void setMemoryLimit(uint64_t limit) {
-      irs::IResearchMemoryManager::_memory_limit.store(limit);
-    }
-
-private:
-    static inline std::shared_ptr<IResearchMemoryManagerAccessor> _accessor;
-};
-
-//  An allocator using IResearchMemoryManagerAccessor
-//  so that we can track the allocations/deallocations
-//  during the test.
-template<typename T>
-struct ManagedTypedAllocatorTest
-  : ManagedAllocator<std::allocator<T>, IResearchMemoryManagerAccessor> {
-  using Base = ManagedAllocator<std::allocator<T>, IResearchMemoryManagerAccessor>;
-  explicit ManagedTypedAllocatorTest()
-    : Base(
-        *IResearchMemoryManagerAccessor::GetInstance()
-      ) {
-  }
-  using Base::Base;
-};
-
-TEST(IResearch_memory_limit_test, managed_allocator_smoke_test) {
-
-    IResearchMemoryManagerAccessor::setMemoryLimit(3);
-    auto memoryMgr = IResearchMemoryManagerAccessor::GetInstance();
+    auto memoryMgr = IResearchMemoryManager::GetInstance();
+    memoryMgr->SetMemoryLimit(3);
 
     using type = char;
-    std::vector<type, ManagedTypedAllocatorTest<type>> arr(*memoryMgr.get());
+    std::vector<type, ManagedTypedAllocator<type>> arr(*memoryMgr);
 
     arr.push_back('a');
     arr.push_back('b');
     ASSERT_THROW(arr.push_back('c'), std::bad_alloc);
 }
 
-TEST(IResearch_memory_limit_test, memory_manager_smoke_test) {
+TEST(IResearchMemoryLimitTest, memory_manager_smoke_test) {
 
     //  set limit
-    IResearchMemoryManagerAccessor::setMemoryLimit(47);
+    auto memoryMgr = IResearchMemoryManager::GetInstance();
+    memoryMgr->SetMemoryLimit(47);
 
     //  allocate vector
     ManagedVector<uint64_t> vec;
@@ -104,7 +56,7 @@ TEST(IResearch_memory_limit_test, memory_manager_smoke_test) {
     ASSERT_THROW(vec.push_back(12), std::bad_alloc);    //  Allocate 32 while holding previous 16, total 48 (bad_alloc)
 
     //  Increase memory limit to accommodate the 3rd element.
-    IResearchMemoryManagerAccessor::setMemoryLimit(48);
+    memoryMgr->SetMemoryLimit(48);
 
     ASSERT_NO_THROW(vec.push_back(12));
 }
