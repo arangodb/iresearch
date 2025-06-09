@@ -22,10 +22,16 @@
 
 #pragma once
 
+#include <atomic>
 #include <vector>
 
 #include "shared.hpp"
 #include "utils/managed_allocator.hpp"
+
+namespace arangodb::iresearch
+{
+  class IResearchFeature;
+};
 
 namespace irs {
 
@@ -68,6 +74,69 @@ struct ResourceManagementOptions {
   IResourceManager* cached_columns{&IResourceManager::kNoop};
 };
 
+//  Memory manager for IResearch.
+//  This is a singleton class
+struct IResearchMemoryManager : public IResourceManager {
+protected:
+  IResearchMemoryManager() = default;
+
+public:
+  virtual ~IResearchMemoryManager() = default;
+
+  virtual void Increase([[maybe_unused]] uint64_t value) override {
+
+    IRS_ASSERT(this != &kForbidden);
+    IRS_ASSERT(value >= 0);
+
+    if (0 == _memoryLimit) {
+      // since we have no limit, we can simply use fetch-add for the increment
+      _current.fetch_add(value, std::memory_order_relaxed);
+    } else {
+      // we only want to perform the update if we don't exceed the limit!
+      std::uint64_t cur = _current.load(std::memory_order_relaxed);
+      std::uint64_t next;
+      do {
+        next = cur + value;
+        if (IRS_UNLIKELY(next > _memoryLimit.load(std::memory_order_relaxed))) {
+          throw std::bad_alloc();
+        }
+      } while (!_current.compare_exchange_weak(
+        cur, next, std::memory_order_relaxed));
+    }
+  }
+
+  virtual void Decrease([[maybe_unused]] uint64_t value) noexcept override {
+    IRS_ASSERT(this != &kForbidden);
+    IRS_ASSERT(value >= 0);
+    _current.fetch_sub(value, std::memory_order_relaxed);
+  }
+
+  //  NOTE: IResearchFeature owns and manages this memory limit.
+  //  That is why this method should only be used by IResearchFeature.
+  virtual void SetMemoryLimit(uint64_t memoryLimit) {
+    _memoryLimit.store(memoryLimit);
+  }
+
+private:
+  //  This limit should be set exclusively by IResearchFeature.
+  //  During IResearchFeature::validateOptions() this limit is set to a
+  //  percentage of either the total available physical memory or the value
+  //  of ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY envvar if specified.
+  std::atomic<std::uint64_t> _memoryLimit = { 0 };
+  std::atomic<std::uint64_t> _current = { 0 };
+
+  //  Singleton
+  static inline std::shared_ptr<IResearchMemoryManager> _instance;
+
+public:
+  static std::shared_ptr<IResearchMemoryManager> GetInstance() {
+    if (!_instance.get())
+      _instance.reset(new IResearchMemoryManager());
+
+    return _instance;
+  }
+};
+
 template<typename T>
 struct ManagedTypedAllocator
   : ManagedAllocator<std::allocator<T>, IResourceManager> {
@@ -77,7 +146,7 @@ struct ManagedTypedAllocator
 #if !defined(_MSC_VER) && defined(IRESEARCH_DEBUG)
         IResourceManager::kForbidden
 #else
-        IResourceManager::kNoop
+        *IResearchMemoryManager::GetInstance()
 #endif
       ) {
   }
