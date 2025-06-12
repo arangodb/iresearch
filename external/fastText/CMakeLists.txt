@@ -47,7 +47,6 @@ set(SOURCE_FILES
     src/dictionary.cc
     src/fasttext.cc
     src/loss.cc
-    src/main.cc
     src/matrix.cc
     src/meter.cc
     src/model.cc
@@ -73,7 +72,15 @@ set_target_properties(fasttext-static PROPERTIES INTERFACE_INCLUDE_DIRECTORIES $
 set_target_properties(fasttext-static_pic PROPERTIES OUTPUT_NAME fasttext_pic
   POSITION_INDEPENDENT_CODE True)
 add_executable(fasttext-bin src/main.cc)
+if (NOT MSVC)
 target_link_libraries(fasttext-bin pthread fasttext-static)
+else()
+target_link_libraries(fasttext-bin fasttext-static)
+endif()
+
+  set_target_properties(fasttext-shared PROPERTIES PUBLIC_HEADER "${HEADER_FILES}")
+  set_target_properties(fasttext-static PROPERTIES PUBLIC_HEADER "${HEADER_FILES}")
+  set_target_properties(fasttext-static_pic PROPERTIES PUBLIC_HEADER "${HEADER_FILES}")
 set_target_properties(fasttext-bin PROPERTIES PUBLIC_HEADER "${HEADER_FILES}" OUTPUT_NAME fasttext)
 install (TARGETS fasttext-shared
     LIBRARY DESTINATION lib)
