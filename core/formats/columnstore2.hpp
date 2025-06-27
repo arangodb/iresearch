@@ -82,46 +82,44 @@ class column final : public irs::column_output {
 
   class address_table {
    public:
-    address_table(ManagedTypedAllocator<uint64_t> alloc) : alloc_{alloc} {
-      offsets_ = alloc_.allocate(kBlockSize);
-      offset_ = offsets_;
+    address_table(ManagedTypedAllocator<uint64_t> alloc) {
     }
 
-    ~address_table() { alloc_.deallocate(offsets_, kBlockSize); }
+    ~address_table() { }
 
     uint64_t back() const noexcept {
-      IRS_ASSERT(offsets_ < offset_);
-      return offset_[-1];
+      IRS_ASSERT(!offsets_.empty());
+      return offsets_.back();
     }
 
     void push_back(uint64_t offset) noexcept {
-      IRS_ASSERT(offset_ < offsets_ + kBlockSize);
-      *offset_++ = offset;
+      IRS_ASSERT(offsets_.size() < column::kBlockSize);
+      offsets_.push_back(offset);
     }
 
     void pop_back() noexcept {
-      IRS_ASSERT(offsets_ < offset_);
-      --offset_;
+      IRS_ASSERT(!offsets_.empty());
+      offsets_.pop_back();
     }
 
     uint32_t size() const noexcept {
-      return static_cast<uint32_t>(offset_ - offsets_);
+      return static_cast<uint32_t>(offsets_.size());
     }
 
-    bool empty() const noexcept { return offset_ == offsets_; }
+    bool empty() const noexcept { return !offsets_.empty(); }
 
-    bool full() const noexcept { return offset_ == offsets_ + kBlockSize; }
+    bool full() const noexcept { return offsets_.size() == column::kBlockSize; }
 
-    void reset() noexcept { offset_ = offsets_; }
+    void reset() noexcept { offsets_.clear(); }
 
-    uint64_t* begin() noexcept { return offsets_; }
-    uint64_t* current() noexcept { return offset_; }
-    uint64_t* end() noexcept { return offsets_ + kBlockSize; }
+    uint64_t* begin1() noexcept { return &offsets_[0]; }
+    uint64_t* current1() noexcept { return offset_; }
+    uint64_t* end1() noexcept { return &offsets_[offsets_.size()]; }
 
    private:
-    ManagedTypedAllocator<uint64_t> alloc_;
-    uint64_t* offsets_{nullptr};
+    std::vector<uint64_t, ManagedTypedAllocator<uint64_t>> offsets_;
     uint64_t* offset_{nullptr};
+    size_t max_size_ { 0 };
   };
 
   void Prepare(doc_id_t key) final;
