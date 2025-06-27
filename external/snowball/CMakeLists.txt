@@ -193,6 +193,15 @@ SET(COMPILER_SOURCES
 )
 
 ADD_EXECUTABLE(snowball ${COMPILER_SOURCES})
+IF(MSVC)
+	# As our Windows linker is lld-link, we need to link against the MSVC runtime libraries
+	# https://learn.microsoft.com/en-us/cpp/c-runtime-library/crt-library-features?view=msvc-170
+	IF(DEBUG)
+		target_link_libraries(snowball PRIVATE libucrtd.lib libvcruntimed.lib libcmtd.lib)
+	ELSE(DEBUG)
+		target_link_libraries(snowball PRIVATE libucrt.lib libvcruntime.lib libcmt.lib)
+	ENDIF()
+ENDIF(MSVC)
 
 SET(SNOWBALL_RUNTIME
   ${CMAKE_CURRENT_SOURCE_DIR}/runtime/api.c
