@@ -37,7 +37,7 @@ enum class Version : int32_t { kMin = 0, kMax = kMin };
 
 class column final : public irs::column_output {
  public:
-  static constexpr size_t kBlockSize = sparse_bitmap_writer::kBlockSize;
+  static constexpr uint32_t kBlockSize = sparse_bitmap_writer::kBlockSize;
   static_assert(math::is_power2(kBlockSize));
 
   struct context {
@@ -82,54 +82,82 @@ class column final : public irs::column_output {
 public:
   class address_table {
    public:
-    address_table(ManagedTypedAllocator<uint64_t> alloc) : alloc_(alloc) {
-      offsets_ = alloc_.allocate(kBlockSize);
-      offset_ = offsets_;
-    }
+    address_table(ManagedTypedAllocator<uint64_t> alloc) : offsets_(alloc) { }
 
-    ~address_table() { alloc_.deallocate(offsets_, kBlockSize); }
+    ~address_table() = default;
 
-    uint64_t back() const noexcept {
-      IRS_ASSERT(offsets_ < offset_);
-      return offset_[-1];
-    }
-
-    bool push_back(uint64_t offset) noexcept {
-      IRS_ASSERT(offset_ < offsets_ + kBlockSize);
-      if (!(offset_ < offsets_ + kBlockSize))
+    bool back(uint64_t& backValue) const noexcept {
+      IRS_ASSERT(!offsets_.empty() && current_pos_ > 0);
+      if (offsets_.empty() || 0 == current_pos_)
         return false;
 
-      *offset_++ = offset;
+      backValue = offsets_[current_pos_ - 1];
       return true;
     }
 
-    bool pop_back() noexcept {
-      IRS_ASSERT(offsets_ < offset_);
-      if (!(offsets_ < offset_))
+    //  TODO:
+    //  The present users of the push/pop functions
+    //  assume that these functions will always succeed,
+    //  so they don't check for failures.
+    bool push_back(uint64_t offset) noexcept {
+      IRS_ASSERT(current_pos_ < column::kBlockSize);
+
+      if (!(current_pos_ < column::kBlockSize))
         return false;
 
-      --offset_;
+      if (offsets_.size() <= static_cast<decltype(offsets_)::size_type>(current_pos_))
+        offsets_.resize(current_pos_ + 1);
+
+      offsets_[current_pos_++] = offset;
+      return true;
+    }
+
+    bool pop_back() {
+      IRS_ASSERT(!offsets_.empty() && current_pos_ > 0);
+      if (offsets_.empty() || 0 == current_pos_)
+        return false;
+
+      --current_pos_;
       return true;
     }
 
     uint32_t size() const noexcept {
-      return static_cast<uint32_t>(offset_ - offsets_);
+      return current_pos_;
     }
 
-    bool empty() const noexcept { return offset_ == offsets_; }
+    //  Allocates more space if required.
+    //  Doesn't shrink if max_elem < size.
+    bool grow_size(uint32_t max_elems) {
+      IRS_ASSERT(max_elems <= column::kBlockSize);
+      if (!(max_elems <= column::kBlockSize))
+        return false;
 
-    bool full() const noexcept { return offset_ == offsets_ + kBlockSize; }
+      if (max_elems > static_cast<uint32_t>(offsets_.size()))
+        offsets_.resize(max_elems);
 
-    void reset() noexcept { offset_ = offsets_; }
+      return true;
+    }
 
-    uint64_t* begin() noexcept { return offsets_; }
-    uint64_t* current() noexcept { return offset_; }
-    uint64_t* end() noexcept { return offsets_ + kBlockSize; }
+    bool empty() const noexcept { return 0 == current_pos_; }
+
+    bool full() const noexcept { return current_pos_ == column::kBlockSize; }
+
+    void reset() noexcept {
+      offsets_.clear();
+      current_pos_ = 0;
+    }
+
+    uint64_t* begin() noexcept { return &offsets_[0]; }
+
+    //  current() points to the next location in the table
+    //  where new data will be added.
+    //  Call grow_size() to allocate space before using current()
+    uint64_t* current() noexcept { return &offsets_[current_pos_]; }
+    uint64_t* end() noexcept { return &offsets_[current_pos_]; }
 
    private:
-    ManagedTypedAllocator<uint64_t> alloc_;
-    uint64_t* offsets_{nullptr};
-    uint64_t* offset_{nullptr};
+    std::vector<uint64_t, ManagedTypedAllocator<uint64_t>> offsets_;
+    uint32_t current_pos_ { 0 };
   };
 
 private:
