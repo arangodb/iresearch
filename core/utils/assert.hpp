@@ -36,7 +36,7 @@ void Message(SourceLocation&& location, std::string_view message);
 
 }  // namespace irs::assert
 
-#ifdef IRESEARCH_DEBUG
+#if IRESEARCH_DEBUG && !UNIT_TESTING
 
 // https://stackoverflow.com/questions/9183993/msvc-variadic-macro-expansion
 #define IRS_GLUE(x, y) x y
