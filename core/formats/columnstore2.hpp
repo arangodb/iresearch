@@ -21,7 +21,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-
 #include "formats/formats.hpp"
 #include "formats/sparse_bitmap.hpp"
 #include "resource_manager.hpp"
@@ -80,9 +79,10 @@ class column final : public irs::column_output {
  private:
   friend class writer;
 
+public:
   class address_table {
    public:
-    address_table(ManagedTypedAllocator<uint64_t> alloc) : alloc_{alloc} {
+    address_table(ManagedTypedAllocator<uint64_t> alloc) : alloc_(alloc) {
       offsets_ = alloc_.allocate(kBlockSize);
       offset_ = offsets_;
     }
@@ -94,14 +94,22 @@ class column final : public irs::column_output {
       return offset_[-1];
     }
 
-    void push_back(uint64_t offset) noexcept {
+    bool push_back(uint64_t offset) noexcept {
       IRS_ASSERT(offset_ < offsets_ + kBlockSize);
+      if (!(offset_ < offsets_ + kBlockSize))
+        return false;
+
       *offset_++ = offset;
+      return true;
     }
 
-    void pop_back() noexcept {
+    bool pop_back() {
       IRS_ASSERT(offsets_ < offset_);
+      if (!(offsets_ < offset_))
+        return false;
+
       --offset_;
+      return true;
     }
 
     uint32_t size() const noexcept {
@@ -124,6 +132,7 @@ class column final : public irs::column_output {
     uint64_t* offset_{nullptr};
   };
 
+private:
   void Prepare(doc_id_t key) final;
 
   bool empty() const noexcept { return addr_table_.empty() && !docs_count_; }
