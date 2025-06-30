@@ -57,7 +57,7 @@ const EmptySubReader kEmpty;
 
 const SubReader& SubReader::empty() noexcept { return kEmpty; }
 
-#ifdef IRESEARCH_DEBUG
+#if defined(IRESEARCH_DEBUG) && !defined(UNIT_TESTING)
 IResourceManager IResourceManager::kForbidden;
 #endif
 IResourceManager IResourceManager::kNoop;
