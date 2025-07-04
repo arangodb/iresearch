@@ -103,7 +103,7 @@ public:
       return true;
     }
 
-    bool pop_back() {
+    bool pop_back() noexcept {
       IRS_ASSERT(offsets_ < offset_);
       if (!(offsets_ < offset_))
         return false;
