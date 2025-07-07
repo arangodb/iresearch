@@ -2,27 +2,29 @@ cmake_minimum_required(VERSION 3.2)
 project(SIMDCOMP VERSION "0.0.3")
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -v" )
-set(BASE_FLAGS
-  "-std=c99"
-  "-fPIC"
-  "-Wextra"
-  "-pedantic"
-  "-Wshadow"
-)
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-  set(BASE_FLAGS
-    ${BASE_FLAGS}
-    "-O0"
-    "-ggdb"
-    )
-else()
-  set(BASE_FLAGS
-    ${BASE_FLAGS}
-    "-O3"
-    "-g"
-    )
-endif()
 
+if(NOT WIN32)
+  set(BASE_FLAGS
+    "-std=c99"
+    "-fPIC"
+    "-Wextra"
+    "-pedantic"
+    "-Wshadow"
+  )
+  if(CMAKE_BUILD_TYPE MATCHES Debug)
+    set(BASE_FLAGS
+      ${BASE_FLAGS}
+      "-O0"
+      "-ggdb"
+      )
+  else()
+    set(BASE_FLAGS
+      ${BASE_FLAGS}
+      "-O3"
+      "-g"
+      )
+  endif()
+endif() # if not windows
 # test for arm
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*|armv8.*|ARMV8.*)")
    set(BASE_FLAGS
