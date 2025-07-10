@@ -88,13 +88,13 @@ public:
     IRS_ASSERT(this != &kForbidden);
     IRS_ASSERT(value >= 0);
 
-    if (0 == _memoryLimit) {
+    if (_memoryLimit == 0) {
       // since we have no limit, we can simply use fetch-add for the increment
       _current.fetch_add(value, std::memory_order_relaxed);
     } else {
       // we only want to perform the update if we don't exceed the limit!
-      std::uint64_t cur = _current.load(std::memory_order_relaxed);
-      std::uint64_t next;
+      size_t cur = _current.load(std::memory_order_relaxed);
+      size_t next;
       do {
         next = cur + value;
         if (IRS_UNLIKELY(next > _memoryLimit.load(std::memory_order_relaxed))) {
@@ -115,6 +115,10 @@ public:
   //  That is why this method should only be used by IResearchFeature.
   virtual void SetMemoryLimit(size_t memoryLimit) {
     _memoryLimit.store(memoryLimit);
+  }
+
+  size_t getCurrentUsage() {
+    return _current.load(std::memory_order_relaxed);
   }
 
 private:

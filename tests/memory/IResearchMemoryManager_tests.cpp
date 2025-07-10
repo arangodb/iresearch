@@ -33,20 +33,57 @@ struct LargeData {
     char data[1024];
 };
 
-TEST(IResearchMemoryLimitTest, no_limit_set_allows_infinite_allocations) {
+class IResearchMemoryLimitTest : public ::testing::Test {
+
+    //  IResearchMemoryManager's state persists between tests
+    //  since it's a static singleton instance. We must clear
+    //  the used memory at the end of each test so that the next
+    //  test gets a fresh start.
+    void clearUsedMemory() {
+
+        auto memoryMgr = IResearchMemoryManager::GetInstance();
+        memoryMgr->Decrease(memoryMgr->getCurrentUsage());
+    }
+
+    virtual void TearDown() override {
+        clearUsedMemory();
+    }
+};
+
+TEST_F(IResearchMemoryLimitTest, memory_manager_smoke_test) {
+    auto memoryMgr = IResearchMemoryManager::GetInstance();
+
+    auto elemSize = sizeof(uint64_t);
+    auto maxElems = 2;
+    memoryMgr->SetMemoryLimit(maxElems * elemSize);
+
+    //  Add 10 elems.
+    for (int i = 0; i < maxElems; i++) {
+        ASSERT_NO_THROW(memoryMgr->Increase(elemSize));
+    }
+
+    //  Try adding 11th element. Should throw.
+    ASSERT_THROW(memoryMgr->Increase(elemSize), std::bad_alloc);
+
+    //  Remove 1 element and try again, shouldn't throw.
+    memoryMgr->Decrease(elemSize);
+    ASSERT_NO_THROW(memoryMgr->Increase(elemSize));
+
+    //  Limit reached. Should start throwing again.
+    ASSERT_THROW(memoryMgr->Increase(elemSize), std::bad_alloc);
+
+    //  Increase the limit and add 1 more element, shouldn't throw.
+    memoryMgr->SetMemoryLimit((maxElems + 1) * elemSize);
+    ASSERT_NO_THROW(memoryMgr->Increase(elemSize));
+
+    //  Adding any more elements should throw again
+    ASSERT_THROW(memoryMgr->Increase(elemSize), std::bad_alloc);
+}
+
+TEST_F(IResearchMemoryLimitTest, no_limit_set_allows_infinite_allocations) {
 
     //  The expectation is to allow potentially infinite allocations
     //  even if we're testing with just 1MB.
-
-    //  allocate vector
-    ManagedVector<LargeData> vec;
-
-    for (size_t i = 0; i < 1024; i++) {
-        ASSERT_NO_THROW(vec.push_back(LargeData()));
-    }
-}
-
-TEST(IResearchMemoryLimitTest, zero_limit_allow_infinite_allocations) {
 
     auto memoryMgr = IResearchMemoryManager::GetInstance();
     memoryMgr->SetMemoryLimit(0);
@@ -59,7 +96,20 @@ TEST(IResearchMemoryLimitTest, zero_limit_allow_infinite_allocations) {
     }
 }
 
-TEST(IResearchMemoryLimitTest, managed_allocator_smoke_test) {
+TEST_F(IResearchMemoryLimitTest, zero_limit_allow_infinite_allocations) {
+
+    auto memoryMgr = IResearchMemoryManager::GetInstance();
+    memoryMgr->SetMemoryLimit(0);
+
+    //  allocate vector
+    ManagedVector<LargeData> vec;
+
+    for (size_t i = 0; i < 1024; i++) {
+        ASSERT_NO_THROW(vec.push_back(LargeData()));
+    }
+}
+
+TEST_F(IResearchMemoryLimitTest, managed_allocator_smoke_test) {
 
     auto memoryMgr = IResearchMemoryManager::GetInstance();
     memoryMgr->SetMemoryLimit(3);
@@ -72,21 +122,23 @@ TEST(IResearchMemoryLimitTest, managed_allocator_smoke_test) {
     ASSERT_THROW(arr.push_back('c'), std::bad_alloc);
 }
 
-TEST(IResearchMemoryLimitTest, memory_manager_smoke_test) {
+TEST_F(IResearchMemoryLimitTest, memory_manager_managed_vector_test) {
 
     //  set limit
+    size_t maxElements { 4 };
     auto memoryMgr = IResearchMemoryManager::GetInstance();
-    memoryMgr->SetMemoryLimit(47);
+    memoryMgr->SetMemoryLimit(maxElements * sizeof(uint64_t));
 
-    //  allocate vector
-    ManagedVector<uint64_t> vec;
-    vec.push_back(10);  //  Allocate 8 bytes
-    vec.push_back(11);  //  Allocate 16, Free previous 8, Copy both elements in the new array.
+    auto addElemsToVec = [](size_t count) {
+        ManagedVector<uint64_t> vec;
+        for (size_t i = 0; i < count; i++) {
+            vec.push_back(i);
+        }
+    };
 
-    ASSERT_THROW(vec.push_back(12), std::bad_alloc);    //  Allocate 32 while holding previous 16, total 48 (bad_alloc)
+    ASSERT_THROW(addElemsToVec(maxElements + 1), std::bad_alloc);
 
-    //  Increase memory limit to accommodate the 3rd element.
-    memoryMgr->SetMemoryLimit(48);
-
-    ASSERT_NO_THROW(vec.push_back(12));
+    //  Increase memory limit.
+    memoryMgr->SetMemoryLimit(maxElements * 3 * sizeof(uint64_t));
+    ASSERT_NO_THROW(addElemsToVec(maxElements + 1));
 }
