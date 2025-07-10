@@ -76,14 +76,22 @@ TEST(IResearchMemoryLimitTest, memory_manager_smoke_test) {
 
     //  set limit
     auto memoryMgr = IResearchMemoryManager::GetInstance();
-    memoryMgr->SetMemoryLimit(47);
+    memoryMgr->SetMemoryLimit(39);
 
     //  allocate vector
     ManagedVector<uint64_t> vec;
     vec.push_back(10);  //  Allocate 8 bytes
     vec.push_back(11);  //  Allocate 16, Free previous 8, Copy both elements in the new array.
 
-    ASSERT_THROW(vec.push_back(12), std::bad_alloc);    //  Allocate 32 while holding previous 16, total 48 (bad_alloc)
+    //  Linux: Allocate 32 while holding previous 16, total 48 (bad_alloc)
+    //  Windows: Allocate 24 while holding previous 16, total 40 (bad_alloc)
+    //
+    //  std::vector, on linux, doubles the size() when
+    //  there's not enough space to store the newly inserted item.
+    //  On Windows, it allocates the new memory only big enough to
+    //  store (size() + size() / 2) items.
+    //
+    ASSERT_THROW(vec.push_back(12), std::bad_alloc);
 
     //  Increase memory limit to accommodate the 3rd element.
     memoryMgr->SetMemoryLimit(48);
