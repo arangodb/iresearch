@@ -83,18 +83,18 @@ protected:
 public:
   virtual ~IResearchMemoryManager() = default;
 
-  virtual void Increase([[maybe_unused]] uint64_t value) override {
+  virtual void Increase([[maybe_unused]] size_t value) override {
 
     IRS_ASSERT(this != &kForbidden);
     IRS_ASSERT(value >= 0);
 
-    if (0 == _memoryLimit) {
+    if (_memoryLimit == 0) {
       // since we have no limit, we can simply use fetch-add for the increment
       _current.fetch_add(value, std::memory_order_relaxed);
     } else {
       // we only want to perform the update if we don't exceed the limit!
-      std::uint64_t cur = _current.load(std::memory_order_relaxed);
-      std::uint64_t next;
+      size_t cur = _current.load(std::memory_order_relaxed);
+      size_t next;
       do {
         next = cur + value;
         if (IRS_UNLIKELY(next > _memoryLimit.load(std::memory_order_relaxed))) {
@@ -105,7 +105,7 @@ public:
     }
   }
 
-  virtual void Decrease([[maybe_unused]] uint64_t value) noexcept override {
+  virtual void Decrease([[maybe_unused]] size_t value) noexcept override {
     IRS_ASSERT(this != &kForbidden);
     IRS_ASSERT(value >= 0);
     _current.fetch_sub(value, std::memory_order_relaxed);
@@ -113,8 +113,12 @@ public:
 
   //  NOTE: IResearchFeature owns and manages this memory limit.
   //  That is why this method should only be used by IResearchFeature.
-  virtual void SetMemoryLimit(uint64_t memoryLimit) {
+  virtual void SetMemoryLimit(size_t memoryLimit) {
     _memoryLimit.store(memoryLimit);
+  }
+
+  size_t getCurrentUsage() {
+    return _current.load(std::memory_order_relaxed);
   }
 
 private:
@@ -122,8 +126,8 @@ private:
   //  During IResearchFeature::validateOptions() this limit is set to a
   //  percentage of either the total available physical memory or the value
   //  of ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY envvar if specified.
-  std::atomic<std::uint64_t> _memoryLimit = { 0 };
-  std::atomic<std::uint64_t> _current = { 0 };
+  std::atomic<size_t> _memoryLimit = { 0 };
+  std::atomic<size_t> _current = { 0 };
 
   //  Singleton
   static inline std::shared_ptr<IResearchMemoryManager> _instance;
