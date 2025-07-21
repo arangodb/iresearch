@@ -21,6 +21,7 @@
 /// @author Vasiliy Nabatchikov
 ////////////////////////////////////////////////////////////////////////////////
 
+#include <iostream>
 #include "index/composite_reader_impl.hpp"
 #include "index/index_meta.hpp"
 #include "index/index_writer.hpp"
@@ -912,7 +913,29 @@ TEST(ConsolidationTierTest, NoCandidates) {
 
   irs::Consolidation candidates;
   policy(candidates, reader, consolidating_segments);
-  ASSERT_TRUE(candidates.empty());  // candidates too large
+  ASSERT_FALSE(candidates.empty());
+
+  //  Verify that the consolidation candidate mergeScore <= 1.5
+
+  //  Accessor function to fetch the relevant segment attributes
+  //  from the segment struct.
+  auto getSegmentDims = [](
+      tier::ConsolidationCandidate<irs::Consolidation::value_type>::iterator_t reader_itr,
+      uint64_t& byte_size,
+      uint64_t& docs_count,
+      uint64_t& live_docs_count) {
+
+        auto reader = *reader_itr;
+        auto meta = reader->Meta();
+
+        byte_size = meta.byte_size;
+        docs_count = meta.docs_count;
+        live_docs_count = meta.live_docs_count;
+      };
+
+  tier::ConsolidationCandidate<irs::Consolidation::value_type> consolidation_candidate(
+    candidates.cbegin(), candidates.cend() - 1, getSegmentDims);
+  ASSERT_LE(consolidation_candidate.mergeScore, 1.5);
 }
 
 TEST(ConsolidationTierTest, SkewedSegments) {
