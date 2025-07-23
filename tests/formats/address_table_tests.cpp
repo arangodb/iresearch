@@ -100,17 +100,20 @@ TEST_F(address_table_tests, write_using_current_ptr) {
 
     column::address_table addr_table(alloc);
 
+    uint64_t elemCount = 60;
     //  add data via push_back.
     auto data = 0;
-    for (uint64_t i = 0; i < 60; i++) {
+    for (uint64_t i = 0; i < elemCount; i++) {
         ASSERT_TRUE(addr_table.push_back(data++));
     }
 
     //  add data via current() ptr.
     //  column::flush_block() uses address_table
     //  in this way.
-    auto curr = addr_table.current();
     uint64_t addr_table_size = 40900;
+    ASSERT_TRUE(addr_table.grow_size(addr_table.size() + addr_table_size));
+
+    auto curr = addr_table.current();
     auto end = curr + addr_table_size;
 
     while (curr != end) {
@@ -148,15 +151,17 @@ TEST_F(address_table_tests, max_size_allowed) {
     //  coz address_table pre-allocates memory to
     //  accommodate kBlockSize elements.
     ASSERT_EQ(addr_table.size(), 0);
-    ASSERT_EQ(addr_table.end(), addr_table.begin() + column::kBlockSize);
+
     ASSERT_EQ(addr_table.current(), addr_table.begin() + 0);
 
-    for (uint64_t i = 0; i < 1234; i++) {
+    ASSERT_TRUE(addr_table.grow_size(column::kBlockSize));
+
+    for (uint64_t i = 0; i < column::kBlockSize; i++) {
+        ASSERT_FALSE(addr_table.full());
         ASSERT_TRUE(addr_table.push_back(i));
     }
-
-    ASSERT_EQ(addr_table.end(), addr_table.begin() + column::kBlockSize);
-    ASSERT_EQ(addr_table.current(), addr_table.begin() + 1234);
+    ASSERT_TRUE(addr_table.full());
+    ASSERT_EQ(addr_table.current(), addr_table.begin() + column::kBlockSize);
 }
 
 //  full
@@ -166,13 +171,13 @@ TEST_F(address_table_tests, empty_full_and_reset) {
 
     ASSERT_FALSE(addr_table.full());
     for (uint64_t i = 0; i < column::kBlockSize; i++) {
+        ASSERT_FALSE(addr_table.full());
         ASSERT_TRUE(addr_table.push_back(i));
     }
     ASSERT_TRUE(addr_table.full());
 
     addr_table.pop_back();
     ASSERT_FALSE(addr_table.full());
-    ASSERT_EQ(addr_table.current() + 1, addr_table.end());
 
     addr_table.reset();
     ASSERT_FALSE(addr_table.full());

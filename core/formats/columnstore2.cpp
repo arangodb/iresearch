@@ -1321,6 +1321,10 @@ void column::Prepare(doc_id_t key) {
     prev_ = pend_;
     pend_ = key;
     docs_writer_.push_back(key);
+
+    //  TODO:
+    //  push_back() can fail. Inspect the return
+    //  value and handle failures.
     addr_table_.push_back(data_.stream.file_pointer());
   }
 }
@@ -1332,7 +1336,13 @@ void column::reset() {
 
   [[maybe_unused]] const bool res = docs_writer_.erase(pend_);
   IRS_ASSERT(res);
-  data_.stream.truncate(addr_table_.back());
+
+  //  TODO:
+  //  back()/push_back() can fail. Inspect the return
+  //  values and handle failures.
+  uint64_t lastElem;
+  addr_table_.back(lastElem);
+  data_.stream.truncate(lastElem);
   addr_table_.pop_back();
   pend_ = prev_;
 }
@@ -1345,15 +1355,24 @@ void column::flush_block() {
   auto& data_out = *ctx_.data_out;
   auto& block = blocks_.emplace_back();
   block.addr = data_out.file_pointer();
-  block.last_size = data_.file.length() - addr_table_.back();
+
+  //  TODO:
+  //  addr_table_.back() can fail. Inspect the return
+  //  value and handle failures.
+  uint64_t lastElem;
+  addr_table_.back(lastElem);
+  block.last_size = data_.file.length() - lastElem;
 
   const uint32_t docs_count = addr_table_.size();
-  const uint64_t addr_table_size =
-    math::ceil64(docs_count, packed::BLOCK_SIZE_64);
-  auto* begin = addr_table_.begin();
-  auto* end = begin + addr_table_size;
-  if (auto* it = addr_table_.current(); it != end) {
-    std::memset(it, 0, (end - it) * sizeof(*it));
+  const uint32_t addr_table_size =
+    math::ceil32(docs_count, packed::BLOCK_SIZE_64);
+
+  addr_table_.grow_size(addr_table_size);
+  auto begin = addr_table_.begin();
+  auto end = begin + addr_table_size;
+
+  if (auto it = addr_table_.current(); it != end) {
+    std::fill(it, end, 0);
   }
 
   bool all_equal = !data_.file.length();
@@ -1377,11 +1396,11 @@ void column::flush_block() {
                      (0 == docs_count_ || block.avg == prev_avg_));
     prev_avg_ = block.avg;
   } else {
-    block.bits = packed::maxbits64(begin, end);
+    block.bits = packed::maxbits64(begin, &*end);
     const size_t buf_size =
       packed::bytes_required_64(addr_table_size, block.bits);
     std::memset(ctx_.u64buf, 0, buf_size);
-    packed::pack(begin, end, ctx_.u64buf, block.bits);
+    packed::pack(begin, &*end, ctx_.u64buf, block.bits);
 
     data_out.write_bytes(ctx_.u8buf, buf_size);
     fixed_length_ = false;
