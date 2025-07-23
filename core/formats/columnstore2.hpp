@@ -106,7 +106,7 @@ public:
         return false;
 
       if (offsets_.size() <= static_cast<decltype(offsets_)::size_type>(current_pos_))
-        offsets_.resize(current_pos_ + 1);
+        offsets_.resize(current_pos_ * 2 + 1);
 
       offsets_[current_pos_++] = offset;
       return true;
@@ -153,7 +153,6 @@ public:
     //  where new data will be added.
     //  Call grow_size() to allocate space before using current()
     uint64_t* current() noexcept { return &offsets_[current_pos_]; }
-    uint64_t* end() noexcept { return &offsets_[current_pos_]; }
 
    private:
     std::vector<uint64_t, ManagedTypedAllocator<uint64_t>> offsets_;
