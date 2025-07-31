@@ -376,7 +376,7 @@ target_include_directories(iresearch-static
 if (MSVC)
   target_compile_options(iresearch-static
     PRIVATE "$<$<CONFIG:Debug>:/bigobj>"
-    PRIVATE "/EHa"
+    PRIVATE "/EHsc"
     )
 endif ()
 
