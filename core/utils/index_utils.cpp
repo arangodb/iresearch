@@ -301,21 +301,28 @@ ConsolidationPolicy MakePolicy(const ConsolidateTier& options) {
 
     ///////////////////////////////////////////////////////////////////////////
     /// Stage 3
-    /// sort candidates
+    /// Find cleanup candidates
     ///////////////////////////////////////////////////////////////////////////
 
-    std::sort(sorted_segments.begin(), sorted_segments.end());
     tier::ConsolidationCandidate<tier::SegmentStats> best;
+    auto ret = tier::findBestCleanupCandidate<tier::SegmentStats>(sorted_segments, tier::getSegmentDimensions, best);
+    if (ret && best.initialized && std::distance(best.first(), best.last()) >= 0) {
+      std::copy(best.first(), best.last() + 1, std::back_inserter(candidates));
+      return;
+    }
 
     ///////////////////////////////////////////////////////////////////////////
     /// Stage 4
-    /// find proper candidates
+    /// find consolidation candidates
     ///////////////////////////////////////////////////////////////////////////
 
-    if (!tier::findBestConsolidationCandidate<tier::SegmentStats>(sorted_segments, tier::getSegmentDimensions, best))
+    if (!tier::findBestConsolidationCandidate<tier::SegmentStats>(
+          sorted_segments,
+          max_segments_bytes,
+          tier::getSegmentDimensions, best))
       return;
 
-    candidates.reserve(tier::ConsolidationConfig::candidate_size);
+    candidates.reserve(std::distance(best.first(), best.last()) + 1);
     std::copy(best.first(), best.last() + 1, std::back_inserter(candidates));
   };
 }
