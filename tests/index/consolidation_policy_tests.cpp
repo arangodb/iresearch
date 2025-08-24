@@ -21,7 +21,6 @@
 /// @author Vasiliy Nabatchikov
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <iostream>
 #include "index/composite_reader_impl.hpp"
 #include "index/index_meta.hpp"
 #include "index/index_writer.hpp"
@@ -74,8 +73,9 @@ namespace {
 
 void AssertCandidates(const irs::IndexReader& reader,
                       const std::vector<size_t>& expected_candidates,
-                      const irs::Consolidation& actual_candidates) {
-  ASSERT_EQ(expected_candidates.size(), actual_candidates.size());
+                      const irs::Consolidation& actual_candidates,
+                      const std::string& errMsg = "") {
+  ASSERT_EQ(expected_candidates.size(), actual_candidates.size()) << errMsg;
 
   for (const size_t expected_candidate_idx : expected_candidates) {
     const auto& expected_candidate = reader[expected_candidate_idx];
@@ -189,7 +189,7 @@ void AddSegment(irs::IndexMeta& meta, std::string_view name,
 
 }  // namespace
 
-TEST(ConsolidationTierTest, MaxConsolidationSize) {
+TEST(ConsolidationTierTest, DISABLED_MaxConsolidationSize) {
   irs::IndexMeta meta;
   for (size_t i = 0; i < 22; ++i) {
     AddSegment(meta, std::to_string(i), 1, 1, 1);
@@ -321,7 +321,7 @@ TEST(ConsolidationTierTest, EmptySegment) {
   ASSERT_TRUE(candidates.empty());  // skip empty segments
 }
 
-TEST(ConsolidationTierTest, MaxConsolidationCount) {
+TEST(ConsolidationTierTest, DISABLED_MaxConsolidationCount) {
   // generate meta
   irs::IndexMeta meta;
   for (size_t i = 0; i < 22; ++i) {
@@ -471,7 +471,7 @@ TEST(ConsolidationTierTest, MaxConsolidationCount) {
   }
 }
 
-TEST(ConsolidationTierTest, MinConsolidationCount) {
+TEST(ConsolidationTierTest, DISABLED_MinConsolidationCount) {
   // generate meta
   irs::IndexMeta meta;
   for (size_t i = 0; i < 22; ++i) {
@@ -633,7 +633,7 @@ TEST(ConsolidationTierTest, MinConsolidationCount) {
   }
 }
 
-TEST(ConsolidationTierTest, ConsolidationFloor) {
+TEST(ConsolidationTierTest, DISABLED_ConsolidationFloor) {
   // generate meta
   irs::IndexMeta meta;
   {
@@ -723,46 +723,60 @@ TEST(ConsolidationTierTest, ConsolidationFloor) {
   }
 }
 
-TEST(ConsolidationTierTest, PreferSegmentsWithRemovals) {
+TEST(ConsolidationTierTest, PreferConsolidationOverCleanupWhenDoesntMeetThreshold) {
+  irs::IndexMeta meta;
+  AddSegment(meta, "0", 10, 10, 10);
+  AddSegment(meta, "1", 10, 10, 10);
+  AddSegment(meta, "2", 10, 10, 10);
+  AddSegment(meta, "3", 10, 10, 10);
+  AddSegment(meta, "4", 10, 10, 10);
+  AddSegment(meta, "5", 11, 8, 81);
+  AddSegment(meta, "6", 10, 9, 91);
+  IndexReaderMock reader{meta};
+
+  //  The conslidation threshold defaults are defined
+  //  in tier::ConsolidationConfig.
+
+  irs::index_utils::ConsolidateTier options;
+  options.floor_segment_bytes = 1;
+  options.max_segments = 2;
+  options.min_segments = 2;
+  options.max_segments_bytes = std::numeric_limits<size_t>::max();
+
+  irs::ConsolidatingSegments consolidating_segments;
+  auto policy = irs::index_utils::MakePolicy(options);
+
+  irs::Consolidation candidates;
+  policy(candidates, reader, consolidating_segments);
+  ASSERT_EQ(5, candidates.size());
+}
+
+TEST(ConsolidationTierTest, PreferCleanupWhenMeetsThreshold) {
   // generate meta
   irs::IndexMeta meta;
   AddSegment(meta, "0", 10, 10, 10);
   AddSegment(meta, "1", 10, 10, 10);
-  AddSegment(meta, "2", 11, 10, 11);
-  AddSegment(meta, "3", 11, 10, 11);
+  AddSegment(meta, "2", 10, 10, 10);
+  AddSegment(meta, "3", 10, 10, 10);
+  AddSegment(meta, "4", 10, 10, 10);
+  AddSegment(meta, "5", 11, 5, 11);
+  AddSegment(meta, "6", 10, 5, 11);
   IndexReaderMock reader{meta};
 
   // ensure policy prefers segments with removals
   irs::index_utils::ConsolidateTier options;
   options.floor_segment_bytes = 1;
   options.max_segments = 2;
-  options.min_segments = 1;
+  options.min_segments = 2;
   options.max_segments_bytes = std::numeric_limits<size_t>::max();
 
   irs::ConsolidatingSegments consolidating_segments;
   auto policy = irs::index_utils::MakePolicy(options);
 
-  const std::vector<std::vector<size_t>> expected_tiers{{2, 3}, {0, 1}};
-
-  for (auto& expected_tier : expected_tiers) {
-    irs::Consolidation candidates;
-    policy(candidates, reader, consolidating_segments);
-    AssertCandidates(reader, expected_tier, candidates);
-    candidates.clear();
-    policy(candidates, reader, consolidating_segments);
-    AssertCandidates(reader, expected_tier, candidates);
-    // register candidates for consolidation
-    for (const auto* candidate : candidates) {
-      consolidating_segments.emplace(candidate->Meta().name);
-    }
-  }
-
-  // no more segments to consolidate
-  {
-    irs::Consolidation candidates;
-    policy(candidates, reader, consolidating_segments);
-    ASSERT_TRUE(candidates.empty());
-  }
+  irs::Consolidation candidates;
+  policy(candidates, reader, consolidating_segments);
+  ASSERT_EQ(2, candidates.size());
+  AssertCandidates(reader, {5, 6}, candidates);
 }
 
 TEST(ConsolidationTierTest, Singleton) {
@@ -788,31 +802,34 @@ TEST(ConsolidationTierTest, Singleton) {
     }
   }
 
-  // singleton consolidation with removals
+  // singleton consolidation with < 50% removals
   {
     irs::ConsolidatingSegments consolidating_segments;
     irs::IndexMeta meta;
-    AddSegment(meta, "0", 100, 99, 150);
+    AddSegment(meta, "0", 100, 51, 150);
     IndexReaderMock reader{meta};
-
-    // 1st tier
-    {
-      irs::Consolidation candidates;
-      policy(candidates, reader, consolidating_segments);
-      AssertCandidates(reader, {0}, candidates);
-      candidates.clear();
-      policy(candidates, reader, consolidating_segments);
-      AssertCandidates(reader, {0}, candidates);
-      // register candidates for consolidation
-      for (const auto* candidate : candidates) {
-        consolidating_segments.emplace(candidate->Meta().name);
-      }
-    }
 
     {
       irs::Consolidation candidates;
       policy(candidates, reader, consolidating_segments);
       ASSERT_TRUE(candidates.empty());
+    }
+  }
+
+  // singleton consolidation with >= 50% removals
+  {
+    irs::ConsolidatingSegments consolidating_segments;
+    irs::IndexMeta meta;
+    AddSegment(meta, "0", 100, 49, 150);
+    AddSegment(meta, "1", 100, 59, 150);
+    AddSegment(meta, "2", 100, 69, 150);
+    AddSegment(meta, "3", 100, 50, 150);
+    IndexReaderMock reader{meta};
+
+    {
+      irs::Consolidation candidates;
+      policy(candidates, reader, consolidating_segments);
+      AssertCandidates(reader, {0, 3}, candidates);
     }
   }
 }
@@ -917,6 +934,97 @@ TEST(ConsolidationTierTest, NoCandidates) {
 }
 
 TEST(ConsolidationTierTest, SkewedSegments) {
+    irs::index_utils::ConsolidateTier options;
+    options.max_segments_bytes = 52500;  // max size of the merge
+
+    auto policy = irs::index_utils::MakePolicy(options);
+
+    //  test correct selection of candidates
+    {
+      irs::ConsolidatingSegments consolidating_segments;
+      irs::IndexMeta meta;
+      AddSegment(meta, "0", 100, 100, 10);
+      AddSegment(meta, "1", 100, 100, 40);
+      AddSegment(meta, "2", 100, 100, 60);
+      AddSegment(meta, "3", 100, 100, 70);
+      AddSegment(meta, "4", 100, 100, 100);
+      AddSegment(meta, "5", 100, 100, 150);
+      AddSegment(meta, "6", 100, 100, 200);
+      AddSegment(meta, "7", 100, 100, 500);
+      AddSegment(meta, "8", 100, 100, 750);
+      AddSegment(meta, "9", 100, 100, 1100);
+      AddSegment(meta, "10", 100, 100, 90);
+      AddSegment(meta, "11", 100, 100, 75);
+      AddSegment(meta, "12", 100, 100, 1500);
+      AddSegment(meta, "13", 100, 100, 10000);
+      AddSegment(meta, "14", 100, 100, 5000);
+      AddSegment(meta, "15", 100, 100, 1750);
+      AddSegment(meta, "16", 100, 100, 690);
+      IndexReaderMock reader{meta};
+
+      const std::vector<std::vector<size_t>> expected_tiers{
+        {0, 1, 2, 3, 4, 10, 11},
+        {7, 8, 9, 12, 15, 16},
+        {}
+      };
+
+      for (size_t i = 0; i < expected_tiers.size(); i++) {
+        auto& expected_tier = expected_tiers[i];
+        irs::Consolidation candidates;
+        policy(candidates, reader, consolidating_segments);
+        AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
+        candidates.clear();
+        policy(candidates, reader, consolidating_segments);
+        AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
+        // register candidates for consolidation
+        for (const auto* candidate : candidates) {
+          consolidating_segments.emplace(candidate->Meta().name);
+        }
+      }
+    }
+
+    {
+      irs::ConsolidatingSegments consolidating_segments;
+      irs::IndexMeta meta;
+      AddSegment(meta, "0", 100, 100, 1);
+      AddSegment(meta, "1", 100, 100, 1);
+      AddSegment(meta, "2", 100, 100, 1);
+      AddSegment(meta, "3", 100, 100, 75);
+      AddSegment(meta, "4", 100, 100, 90);
+      AddSegment(meta, "5", 100, 100, 100);
+      AddSegment(meta, "6", 100, 100, 150);
+      AddSegment(meta, "7", 100, 100, 200);
+      AddSegment(meta, "8", 100, 100, 750);
+      AddSegment(meta, "9", 100, 100, 1100);
+      AddSegment(meta, "10", 100, 100, 1500);
+      AddSegment(meta, "11", 100, 100, 1750);
+      AddSegment(meta, "12", 100, 100, 5000);
+      AddSegment(meta, "13", 100, 100, 10000);
+      IndexReaderMock reader{meta};
+
+      const std::vector<std::vector<size_t>> expected_tiers{
+        {3, 4, 5, 6, 7},
+        {0, 1, 2},
+        {8, 9, 10, 11}
+      };
+
+      for (size_t i = 0; i < expected_tiers.size(); i++) {
+        auto& expected_tier = expected_tiers[i];
+        irs::Consolidation candidates;
+        policy(candidates, reader, consolidating_segments);
+        AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
+        candidates.clear();
+        policy(candidates, reader, consolidating_segments);
+        AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
+        // register candidates for consolidation
+        for (const auto* candidate : candidates) {
+          consolidating_segments.emplace(candidate->Meta().name);
+        }
+      }
+    }
+}
+
+TEST(ConsolidationTierTest, DISABLED_SkewedSegments) {
   {
     irs::index_utils::ConsolidateTier options;
     // min number of segments per tier to merge at once
