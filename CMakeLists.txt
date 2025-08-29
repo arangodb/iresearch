@@ -138,12 +138,6 @@ if (MSVC)
     set(CMAKE_C_FLAGS "/MP ${CMAKE_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "/MP ${CMAKE_CXX_FLAGS}")
   endif ()
-
-  if (${MSVC_VERSION} STRGREATER_EQUAL 1930)
-    # see https://docs.microsoft.com/en-us/cpp/overview/cpp-conformance-improvements?view=msvc-170#error-on-a-non-dependent-static_assert
-    set(CMAKE_C_FLAGS "/Zc:static_assert- ${CMAKE_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "/Zc:static_assert- ${CMAKE_CXX_FLAGS}")
-  endif ()
 else ()
   # We want to force clang/gcc to use it, but only for C++ files
   add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fsized-deallocation>)
