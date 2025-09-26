@@ -1423,7 +1423,7 @@ ConsolidationResult IndexWriter::Consolidate(
   }
 #endif
 
-  IRS_LOG_TRACE(absl::StrCat("Starting consolidation id='", run_id, "':\n",
+  IRS_LOG_INFO(absl::StrCat("Starting consolidation id='", run_id, "':\n",
                              ToString(candidates)));
 
   // do lock-free merge
@@ -1508,7 +1508,7 @@ ConsolidationResult IndexWriter::Consolidate(
         std::move(committed_reader),  // consolidation context meta
         std::move(merger));           // merge context
 
-      IRS_LOG_TRACE(absl::StrCat("Consolidation id='", run_id,
+      IRS_LOG_INFO(absl::StrCat("Consolidation id='", run_id,
                                  "' successfully finished: pending"));
     } else if (committed_reader == current_committed_reader) {
       // before new transaction was started:
@@ -1547,7 +1547,7 @@ ConsolidationResult IndexWriter::Consolidate(
         segment_mask.emplace(candidate->Meta().name);
       }
 
-      IRS_LOG_TRACE(
+      IRS_LOG_INFO(
         absl::StrCat("Consolidation id='", run_id,
                      "' successfully finished: Name='", consolidation_meta.name,
                      "', docs_count=", consolidation_meta.docs_count,
@@ -1573,7 +1573,7 @@ ConsolidationResult IndexWriter::Consolidate(
 
       if (count != candidates.size()) {
         // at least one candidate is missing can't finish consolidation
-        IRS_LOG_DEBUG(absl::StrCat(
+        IRS_LOG_ERROR(absl::StrCat(
           "Failed to finish consolidation id='", run_id, "' for segment '",
           consolidation_segment.meta.name, "', found only '", count,
           "' out of '", candidates.size(), "' candidates"));
@@ -1588,7 +1588,7 @@ ConsolidationResult IndexWriter::Consolidate(
         if (!MapRemovals(mappings, merger, docs_mask)) {
           // consolidated segment has docs missing from
           // current_committed_meta->segments()
-          IRS_LOG_DEBUG(absl::StrCat("Failed to finish consolidation id='",
+          IRS_LOG_ERROR(absl::StrCat("Failed to finish consolidation id='",
                                      run_id, "' for segment '",
                                      consolidation_segment.meta.name,
                                      "', due removed documents still present "
@@ -1637,7 +1637,7 @@ ConsolidationResult IndexWriter::Consolidate(
         }
       }
 
-      IRS_LOG_TRACE(absl::StrCat(
+      IRS_LOG_INFO(absl::StrCat(
         "Consolidation id='", run_id, "' successfully finished:\nName='",
         consolidation_meta.name,
         "', docs_count=", consolidation_meta.docs_count,
@@ -1980,7 +1980,7 @@ IndexWriter::PendingContext IndexWriter::PrepareFlush(const CommitInfo& info) {
       if (count != candidates.size()) {
         // At least one candidate is missing in pending meta can't finish
         // consolidation
-        IRS_LOG_DEBUG(absl::StrCat(
+        IRS_LOG_ERROR(absl::StrCat(
           "Failed to finish merge for segment '", meta.name, "', found only '",
           count, "' out of '", candidates.size(), "' candidates"));
 
