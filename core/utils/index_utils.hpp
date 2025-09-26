@@ -51,24 +51,7 @@ namespace tier {
         meta{&reader.Meta()},
         size{SizeWithoutRemovals(*meta)},
         fill_factor{FillFactor(*meta)} {}
-  
-    bool operator<(const SegmentStats& rhs) const noexcept {
-      // cppcheck-suppress constVariable
-      auto& lhs = *this;
-  
-      if (lhs.size == rhs.size) {
-        if (lhs.fill_factor > rhs.fill_factor) {
-          return true;
-        } else if (lhs.fill_factor < rhs.fill_factor) {
-          return false;
-        }
-  
-        return lhs.meta->name < rhs.meta->name;
-      }
-  
-      return lhs.size < rhs.size;
-    }
-  
+
     operator const irs::SubReader*() const noexcept { return reader; }
   
     const irs::SubReader* reader;
@@ -78,166 +61,176 @@ namespace tier {
                           //  inversely proportional to the no. of deletions.
   };
 
-    struct ConsolidationConfig {
-      static constexpr size_t candidate_size { 2 };   //  candidate selection window size: 4
-      static constexpr double maxMergeScore { 0.4 };  //  max score allowed for candidates consolidation.
-                                                      //  Skip consolidation if candidate score is greater
-                                                      //  than this value.
-      static constexpr double maxLivePercentage { 0.5 };  //  Max live docs % of a segment to consider it
-                                                          //  for cleanup during consolidation.
-    };
+  struct ConsolidationConfig {
+    static constexpr size_t candidate_size { 2 };   //  candidate selection window size: 4
+    static constexpr double maxMergeScore { 0.4 };  //  max score allowed for candidates consolidation.
+                                                    //  Skip consolidation if candidate score is greater
+                                                    //  than this value.
+    static constexpr double maxLivePercentage { 0.5 };  //  Max live docs % of a segment to consider it
+                                                        //  for cleanup during consolidation.
+  };
 
-    //  interface to fetch the required attributes from
-    //  SegmentStats struct.
-    //  We use this function in struct ConsolidationCandidate
-    //  to fetch the segment dimensions from the SegmentStats
-    //  struct.
-    //
-    void getSegmentDimensions(
-        std::vector<tier::SegmentStats>::const_iterator itr,
-        uint64_t& byte_size,
-        uint64_t& docs_count,
-        uint64_t& live_docs_count);
+  struct SegmentAttributes {
+    uint64_t byte_size { 0 };
+    uint64_t docs_count { 0 };
+    uint64_t live_docs_count { 0 };
 
-    template<typename Segment>
-    struct ConsolidationCandidate {
-      using iterator_t = std::vector<Segment>::const_iterator;
-      using range_t = std::pair<iterator_t, iterator_t>;
+    SegmentAttributes() = default;
+    SegmentAttributes(uint64_t b, uint64_t d, uint64_t l) :
+      byte_size(b), docs_count(d), live_docs_count(l) {}
+  };
 
-      ConsolidationCandidate() = default;
+  //  interface to fetch the required attributes from
+  //  SegmentStats struct.
+  //  We use this function in struct ConsolidationCandidate
+  //  to fetch the segment dimensions from the SegmentStats
+  //  struct.
+  //
+  void getSegmentDimensions(
+      const tier::SegmentStats& segment,
+      tier::SegmentAttributes& attrs);
 
-      ConsolidationCandidate(
-        iterator_t start,
-        iterator_t end,
-        std::function<void(
-            iterator_t /* segment iterator */,
-            uint64_t& /* byte_size */,
-            uint64_t& /* docs_count */,
-            uint64_t& /* live_docs_count */)> accessor
-      ) noexcept : segments(start, end), accessor_(accessor) {
+  template<typename Segment>
+  struct ConsolidationCandidate {
+    using SegmentIterator = std::vector<Segment>::const_iterator;
+    using range_t = std::pair<SegmentIterator, SegmentIterator>;
 
-        initialized = true;
+    ConsolidationCandidate() = default;
 
-        //  Calculate initial cost
-        uint64_t byte_size;
-        uint64_t docs_count;
-        uint64_t live_docs_count;
+    ConsolidationCandidate(
+      SegmentIterator start,
+      SegmentIterator end,
+      std::function<void(
+          const Segment&,
+          SegmentAttributes&
+      )> accessor
+    ) noexcept : segments(start, end), accessor_(accessor) {
 
-        auto itr = start;
-        do
-        {
-          accessor_(itr, byte_size, docs_count, live_docs_count);
-          mergeBytes += byte_size;
+      initialized = true;
 
-        } while (itr++ != end);
+      //  Calculate initial cost
+      SegmentAttributes attrs;
 
-        skew = static_cast<double>(byte_size) / mergeBytes;
-        mergeScore = skew;
+      auto itr = start;
+      do
+      {
+        accessor_(*itr, attrs);
+        mergeBytes += attrs.byte_size;
+
+      } while (itr++ != end);
+
+      skew = static_cast<double>(attrs.byte_size) / mergeBytes;
+      mergeScore = skew;
+    }
+
+    //  It is the caller's responsibility to ensure that
+    //  a std::advance() operation is possible on the segments
+    //  range.
+    bool pop_front() {
+      if (!initialized)
+        return false;
+
+      const auto removeSegment = first();
+      const auto lastSegment = last();
+
+      std::advance(segments.first, 1);
+
+      //  Segment to be removed
+      SegmentAttributes rem_seg_attrs;
+      accessor_(*removeSegment, rem_seg_attrs);
+
+      SegmentAttributes last_seg_attrs;
+      accessor_(*lastSegment, last_seg_attrs);
+
+      mergeBytes -= rem_seg_attrs.byte_size;
+      skew = static_cast<double>(last_seg_attrs.byte_size) / mergeBytes;
+      mergeScore = skew;
+
+      return true;
+    }
+
+    //  It is the caller's responsibility to ensure that
+    //  a std::advance() operation is possible on the segments
+    //  range.
+    bool push_back() noexcept {
+      if (!initialized)
+        return false;
+
+      const auto addSegment = segments.second + 1;
+
+      std::advance(segments.second, 1);
+
+      //  Segment to be added
+      SegmentAttributes attrs;
+      accessor_(*addSegment, attrs);
+
+      mergeBytes += attrs.byte_size;
+      skew = static_cast<double>(attrs.byte_size) / mergeBytes;
+      mergeScore = skew;
+
+      return true;
+    }
+
+    SegmentIterator first() const noexcept { return segments.first; }
+    SegmentIterator last() const noexcept { return segments.second; }
+
+    size_t mergeBytes { 0 };
+    double skew { 0.0 };
+    double mergeScore { 0.0 };
+    bool initialized { false };
+
+    range_t segments;
+    std::function<void(const Segment&, SegmentAttributes&)> accessor_;
+  };
+
+  template<typename Segment>
+  bool findBestCleanupCandidate(
+    std::vector<Segment>& segments,
+    const std::function<
+      void(const Segment&,
+            tier::SegmentAttributes& /* byte_size */
+          )>& getSegmentAttributes,
+    tier::ConsolidationCandidate<Segment>& best) {
+
+      auto segmentSortFunc = [&](const Segment& left, const Segment& right) {
+
+        tier::SegmentAttributes attrs;
+        getSegmentAttributes(left, attrs);
+        auto lLivePerc = static_cast<double>(attrs.live_docs_count) / attrs.docs_count;
+
+        getSegmentAttributes(right, attrs);
+        auto rLivePerc = static_cast<double>(attrs.live_docs_count) / attrs.docs_count;
+
+        return lLivePerc < rLivePerc;
+      };
+
+      std::sort(segments.begin(), segments.end(), segmentSortFunc);
+
+      auto count = 0;
+      auto total_docs_count = 0;
+      auto total_live_docs_count = 0;
+      double livePerc;
+
+      for (auto itr = segments.begin(); itr != segments.end(); itr++) {
+
+        tier::SegmentAttributes attrs;
+        getSegmentAttributes(*itr, attrs);
+
+        total_docs_count += attrs.docs_count;
+        total_live_docs_count += attrs.live_docs_count;
+
+        livePerc = static_cast<double>(total_live_docs_count) / total_docs_count;
+        if (livePerc > tier::ConsolidationConfig::maxLivePercentage)
+          break;
+
+        ++count;
       }
 
-      bool pop_front() {
-        if (!initialized)
-          return false;
+      if (count < 1)
+        return false;
 
-        const auto removeSegment = first();
-        const auto lastSegment = last();
-
-        std::advance(segments.first, 1);
-
-        //  Segment to be removed
-        uint64_t rem_byte_size;
-        uint64_t rem_docs_count;
-        uint64_t rem_live_docs_count;
-        accessor_(removeSegment, rem_byte_size, rem_docs_count, rem_live_docs_count);
-
-        uint64_t last_seg_byte_size;
-        uint64_t ignore;
-        accessor_(lastSegment, last_seg_byte_size, ignore, ignore);
-
-        mergeBytes -= rem_byte_size;
-        skew = static_cast<double>(last_seg_byte_size) / mergeBytes;
-        mergeScore = skew;
-
-        return true;
-      }
-
-      bool push_back() noexcept {
-        if (!initialized)
-          return false;
-
-        const auto addSegment = segments.second + 1;
-
-        std::advance(segments.second, 1);
-
-        //  Segment to be added
-        uint64_t add_byte_size;
-        uint64_t add_docs_count;
-        uint64_t add_live_docs_count;
-        accessor_(addSegment, add_byte_size, add_docs_count, add_live_docs_count);
-
-        mergeBytes += add_byte_size;
-        skew = static_cast<double>(add_byte_size) / mergeBytes;
-        mergeScore = skew;
-
-        return true;
-      }
-
-      iterator_t first() const noexcept { return segments.first; }
-      iterator_t last() const noexcept { return segments.second; }
-
-      size_t mergeBytes { 0 };
-      double skew { 0.0 };
-      double mergeScore { 0.0 };
-      bool initialized { false };
-
-      range_t segments;
-      std::function<void(iterator_t, uint64_t&, uint64_t&, uint64_t&)> accessor_;
-    };
-
-    template<typename Segment>
-    bool findBestCleanupCandidate(
-      std::vector<Segment>& segments,
-      const std::function<
-        void(const typename std::vector<Segment>::const_iterator,
-             uint64_t& /* byte_size */,
-             uint64_t& /* docs_count */,
-             uint64_t& /* live_docs_count */)>& getSegmentAttributes,
-      tier::ConsolidationCandidate<Segment>& best) {
-
-        auto segmentSortFunc = [](const Segment& left, const Segment& right) {
-
-          auto lMeta = left.meta;
-          auto rMeta = right.meta;
-          auto lLivePerc = static_cast<double>(lMeta->live_docs_count) / lMeta->docs_count;
-          auto rLivePerc = static_cast<double>(rMeta->live_docs_count) / rMeta->docs_count;
-
-          return (lLivePerc < rLivePerc);
-        };
-
-        std::sort(segments.begin(), segments.end(), segmentSortFunc);
-
-        auto count = 0;
-        auto total_docs_count = 0;
-        auto total_live_docs_count = 0;
-        double livePerc;
-
-        for (auto itr = segments.begin(); itr != segments.end(); itr++) {
-          auto meta = itr->meta;
-          total_docs_count += meta->docs_count;
-          total_live_docs_count += meta->live_docs_count;
-
-          livePerc = static_cast<double>(total_live_docs_count) / total_docs_count;
-          if (livePerc > tier::ConsolidationConfig::maxLivePercentage)
-            break;
-
-          ++count;
-        }
-
-        if (count < 1)
-          return false;
-
-        best = ConsolidationCandidate<Segment>(segments.begin(), segments.begin() + count - 1, getSegmentAttributes);
-        return true;
+      best = ConsolidationCandidate<Segment>(segments.begin(), segments.begin() + count - 1, getSegmentAttributes);
+      return true;
     }
 
     //
@@ -259,14 +252,31 @@ namespace tier {
       std::vector<Segment>& sorted_segments,
       size_t max_segments_bytes,
       const std::function<
-        void(const typename std::vector<Segment>::const_iterator,
-             uint64_t& /* byte_size */,
-             uint64_t& /* docs_count */,
-             uint64_t& /* live_docs_count */)>& getSegmentAttributes,
+        void(const Segment&,
+             SegmentAttributes&
+            )>& getSegmentAttributes,
       tier::ConsolidationCandidate<Segment>& best) {
 
+        auto comp = [&](const Segment& lhs, const Segment& rhs) {
+
+          SegmentAttributes l_attrs;
+          SegmentAttributes r_attrs;
+
+          getSegmentAttributes(lhs, l_attrs);          
+          getSegmentAttributes(rhs, r_attrs);
+
+          if (l_attrs.byte_size == r_attrs.byte_size) {
+            
+            double lfill_factor = static_cast<double>(l_attrs.live_docs_count) / l_attrs.docs_count;
+            double rfill_factor = static_cast<double>(r_attrs.live_docs_count) / r_attrs.docs_count;
+            return lfill_factor > rfill_factor;
+          }
+
+          return l_attrs.byte_size < r_attrs.byte_size;
+        };
+  
         //  sort segments in increasing order of the segment byte size
-        std::sort(sorted_segments.begin(), sorted_segments.end());
+        std::sort(sorted_segments.begin(), sorted_segments.end(), comp);
 
         //  We start with a min. window size of 2
         //  since a window of size 1 will always
@@ -276,67 +286,28 @@ namespace tier {
         auto rear = front + minWindowSize - 1;
         tier::ConsolidationCandidate<Segment> candidate(front, rear, getSegmentAttributes);
 
-        double prev_score { 1.0 };
+        //  Algorithm:
+        //  We 
+        while ((candidate.first() + minWindowSize - 1) <= candidate.last() &&
+                candidate.last() < sorted_segments.end()) {
 
-        while ((candidate.first() + 1) < sorted_segments.end()) {
-
-          if (!best.initialized || (best.mergeScore > candidate.mergeScore && candidate.mergeBytes <= max_segments_bytes))
-            best = candidate;
-
-          if (std::distance(candidate.first(), candidate.last()) < (minWindowSize - 1)) {
-            candidate.push_back();
+          if (candidate.mergeBytes > max_segments_bytes) {
+            candidate.pop_front();
             continue;
           }
 
-          if (candidate.mergeScore > prev_score ||
-              candidate.mergeBytes > max_segments_bytes ||
-              candidate.last() == (sorted_segments.end() - 1)) {
-            prev_score = candidate.mergeScore;
-            candidate.pop_front();
-          }
-          else if (candidate.mergeScore <= prev_score && candidate.last() < (sorted_segments.end() - 1) &&
-            candidate.mergeBytes <= max_segments_bytes) {
-            prev_score = candidate.mergeScore;
-            candidate.push_back();
-          }
+          if (!best.initialized || best.mergeScore > candidate.mergeScore)
+            best = candidate;
+
+          if (candidate.last() == (sorted_segments.end() - 1))
+            break;
+
+          candidate.push_back();
         }
 
         return (best.initialized &&
                 best.mergeScore <= tier::ConsolidationConfig::maxMergeScore);
-    }
-
-    template<typename Segment>
-    bool findBestConsolidationCandidate1(
-      const std::vector<Segment>& sorted_segments,
-      const std::function<
-        void(const typename std::vector<Segment>::const_iterator,
-             uint64_t& /* byte_size */,
-             uint64_t& /* docs_count */,
-             uint64_t& /* live_docs_count */)>& getSegmentAttributes,
-      tier::ConsolidationCandidate<Segment>& best) {
-
-      if (sorted_segments.size() < tier::ConsolidationConfig::candidate_size)
-        return false;
-
-      //  set consolidation window size
-      auto front = sorted_segments.begin();
-      auto rear = front + (tier::ConsolidationConfig::candidate_size - 1);
-      tier::ConsolidationCandidate<Segment> candidate(front, rear,
-                                                        getSegmentAttributes);
-
-      while (candidate.last() != sorted_segments.end()) {
-        if (!best.initialized || candidate.mergeScore < best.mergeScore)
-          best = candidate;
-
-        if (sorted_segments.end() == (candidate.last() + 1))
-          break;
-
-        candidate.advance();
       }
-
-      return (best.initialized &&
-              best.mergeScore <= tier::ConsolidationConfig::maxMergeScore);
-    }
 }
 
 namespace irs::index_utils {
