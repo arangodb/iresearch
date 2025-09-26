@@ -41,9 +41,9 @@ namespace tier {
         tier::SegmentAttributes& attrs) {
 
       auto* meta = segment.meta;
-      attrs.byte_size = meta->byte_size;
-      attrs.docs_count = meta->docs_count;
-      attrs.live_docs_count = meta->live_docs_count;
+      attrs.byteSize = meta->byte_size;
+      attrs.docsCount = meta->docs_count;
+      attrs.liveDocsCount = meta->live_docs_count;
     }
 }
 
