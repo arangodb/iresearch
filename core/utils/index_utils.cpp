@@ -37,15 +37,13 @@ namespace tier {
     //  struct.
     //
     void getSegmentDimensions(
-        std::vector<tier::SegmentStats>::const_iterator itr,
-        uint64_t& byte_size,
-        uint64_t& docs_count,
-        uint64_t& live_docs_count) {
+        const tier::SegmentStats& segment,
+        tier::SegmentAttributes& attrs) {
 
-      auto itrMeta = itr->meta;
-      byte_size = itrMeta->byte_size;
-      docs_count = itrMeta->docs_count;
-      live_docs_count = itrMeta->live_docs_count;
+      auto* meta = segment.meta;
+      attrs.byte_size = meta->byte_size;
+      attrs.docs_count = meta->docs_count;
+      attrs.live_docs_count = meta->live_docs_count;
     }
 }
 
