@@ -244,7 +244,7 @@ TEST(ConsolidationTierTest, MaxConsolidationSize) {
     }
   }
 
-  // invalid options: max_segments_bytes == 0
+  // invalid options: maxSegmentsBytes == 0
   {
     irs::index_utils::ConsolidateTier options;
     options.floor_segment_bytes = 1;
@@ -539,8 +539,7 @@ TEST(ConsolidationTierTest, SkewedSegments) {
 
       const std::vector<std::vector<size_t>> expected_tiers{
         {0, 1, 2, 3, 4, 10, 11},
-        {7, 8, 9, 12, 15, 16},
-        {}
+        {5, 6, 7, 8, 9, 12, 15, 16}
       };
 
       for (size_t i = 0; i < expected_tiers.size(); i++) {
@@ -575,12 +574,304 @@ TEST(ConsolidationTierTest, SkewedSegments) {
       AddSegment(meta, "11", 100, 100, 1750);
       AddSegment(meta, "12", 100, 100, 5000);
       AddSegment(meta, "13", 100, 100, 10000);
+      AddSegment(meta, "14", 100, 100, 15000);
+      AddSegment(meta, "15", 100, 100, 20000);
       IndexReaderMock reader{meta};
 
       const std::vector<std::vector<size_t>> expected_tiers{
-        {3, 4, 5, 6, 7},
-        {0, 1, 2},
-        {8, 9, 10, 11}
+        {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
+        {12, 13, 14, 15}
+      };
+
+      for (size_t i = 0; i < expected_tiers.size(); i++) {
+        auto& expected_tier = expected_tiers[i];
+        irs::Consolidation candidates;
+        policy(candidates, reader, consolidating_segments);
+        AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
+        candidates.clear();
+
+        policy(candidates, reader, consolidating_segments);
+        AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
+        // register candidates for consolidation
+        for (const auto* candidate : candidates) {
+          consolidating_segments.emplace(candidate->Meta().name);
+        }
+      }
+    }
+}
+
+//  The skew is over threshold for each of the combinations of segments
+//  but when finally a segment is found that brings the skew within threshold
+//  we're over max_segment_bytes and that is why we don't consolidate
+
+TEST(ConsolidationTierTest, SkewedSegmentsAndMaxConsolidationSize) {
+  using SEGMENT_SIZE = int;
+  size_t maxSegmentsBytes { 140 };
+
+  /*
+      The default threshold value is 0.4.
+      In the below table, we can see the skew is over 0.4 until the last segment.
+      However, at that time we're already over the maxSegmentBytes of 132. So, we
+      shouldn't consolidate this candidate.
+
+  segment size:         1       2       4       8      16      32      43      49
+  cumulative size:      1       3       7      15      31      63     106     155
+  skew:             1.000   0.667   0.571   0.533   0.516   0.508   0.406   0.316
+
+      Instead, we would start removing segments from the candidate from the left until
+      we're back within the maxSegmentBytes limit which happens when we get here.
+
+  segment size:         16      32      43      49
+  cumulative size:      16      48      91     140
+  skew:              1.000   0.667   0.473   0.350
+
+      At this point we will consolidate the above listed segments
+
+  */
+  std::vector<SEGMENT_SIZE> segmentSizes
+        { 1, 2, 4, 8, 16, 32, 43, 49 };
+
+  auto getAttributes = [](
+    int segment,
+    tier::SegmentAttributes& attrs) {
+      attrs.byteSize = segment;
+  };
+
+  std::vector<SEGMENT_SIZE> expected { 16, 32, 43, 49 };
+
+  tier::ConsolidationCandidate<SEGMENT_SIZE> best;
+  auto result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, getAttributes, best);
+  ASSERT_TRUE(result);
+
+  //  [first, last] is inclusive of bounds.
+  ASSERT_EQ(std::distance(best.first(), best.last() + 1), expected.size());
+
+  size_t index = 0;
+  for (auto itr = best.first(); itr != best.last() + 1; itr++) {
+    ASSERT_EQ(expected[index++], *itr);
+  }
+}
+
+//  When the skew of all the candidates is over the default threshold,
+//  we don't consolidate.
+TEST(ConsolidationTierTest, SkewOverThresholdDontConsolidate) {
+
+  using SEGMENT_SIZE = int;
+  size_t maxSegmentsBytes { 5000 };
+
+  //  The default threshold value is 0.4. In a list of segments sorted
+  //  by the segment size, if the size of a segment is >= the
+  //  sum of sizes of segments on its left, then the skew will be >= 0.5
+  //  which is over the default threshold.
+  std::vector<
+    std::vector<SEGMENT_SIZE>
+      > testcases{
+        { 50, 100, 2000, 4000 },
+        { 1, 2, 4, 8, 16, 32, 64 },
+        { 1, 1, 12 },
+        { 12, 12 },
+        { 12 },
+        { 2, 2, 3}
+    };
+
+  auto getAttributes = [](
+    int segment,
+    tier::SegmentAttributes& attrs) {
+      attrs.byteSize = segment;
+  };
+
+  for (size_t i = 0; i < testcases.size(); i++) {
+
+    auto& segmentSizes = testcases[i];
+    //  No cleanup candidates should be selected here.
+    tier::ConsolidationCandidate<SEGMENT_SIZE> best;
+    auto result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, getAttributes, best);
+    ASSERT_FALSE(result);
+  }
+}
+
+TEST(ConsolidationTierTest, NewSegmentAdditions) {
+  using SEGMENT_SIZE = int;
+  size_t maxSegmentsBytes { 5000 };
+
+  //  The default threshold value is 0.4. In a list of segments sorted
+  //  by the segment size, if the size of a segment is >= the
+  //  sum of sizes of segments on its left, then the skew will be >= 0.5
+  //  which is over the default threshold.
+  std::vector<SEGMENT_SIZE> segmentSizes
+        { 1, 2, 4, 8, 16, 32, 64 };
+
+  auto getAttributes = [](
+    int segment,
+    tier::SegmentAttributes& attrs) {
+      attrs.byteSize = segment;
+  };
+
+  tier::ConsolidationCandidate<SEGMENT_SIZE> best;
+  auto result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, getAttributes, best);
+  ASSERT_FALSE(result);
+
+  //  Adding 2 segments of size 64 each will lower the
+  //  skew and bring it under the default skew threshold
+  //  of 0.4 thereby allowing consolidation.
+  segmentSizes.emplace_back(64);
+  segmentSizes.emplace_back(64);
+  result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, getAttributes, best);
+  ASSERT_TRUE(result);
+
+  //  [first, last] is inclusive of bounds.
+  ASSERT_EQ(std::distance(best.first(), best.last() + 1), segmentSizes.size());
+}
+
+//  Total segment size goes over max_segment_bytes
+//  and we have to remove a few segments from the beginning.
+TEST(ConsolidationTierTest, PopLeftTest) {
+
+  //  Segments with individual- and combined- live % over 50%
+  size_t maxSegmentsBytes { 9 };
+  std::vector<int> segmentSizes{
+    1, 1, 2, 3, 3, 4
+  };
+
+  auto getAttributes = [](
+    int segment,
+    tier::SegmentAttributes& attrs) {
+      attrs.byteSize = segment;
+  };
+
+  //  No cleanup candidates should be selected here.
+  tier::ConsolidationCandidate<int> best;
+  auto result = tier::findBestConsolidationCandidate<int>(segmentSizes, maxSegmentsBytes, getAttributes, best);
+  ASSERT_TRUE(result);
+
+  ASSERT_EQ(std::distance(best.first(), best.last()), 3);
+  ASSERT_EQ(best.first(), segmentSizes.cbegin() + 1);
+  ASSERT_EQ(best.last(), segmentSizes.cend() - 2);
+
+  for (auto res_itr = best.first(), src_itr = segmentSizes.cbegin() + 1;
+       res_itr != best.last() + 1;
+       res_itr++, src_itr++) {
+    ASSERT_EQ(*res_itr, *src_itr);
+  }
+}
+
+TEST(ConsolidationTierTest, CleanupSmokeTest) {
+
+  using LIVE_DOCS_COUNT = int;
+  using DOCS_COUNT = int;
+  using SegmentType = std::pair<LIVE_DOCS_COUNT, DOCS_COUNT>;
+
+  std::vector<
+    std::vector<SegmentType>
+        > testcases {
+          {
+            { 100, 100 }, //  100% live
+            { 55, 100 },  //  55% live
+            { 66, 100 },  //  66%
+            { 49, 100 },  //  49% - under the default threshold of 50%
+            { 50, 100 }   //  50% - equal to the default threshold
+          },
+
+          //  no qualifying segments here
+          {
+            { 90, 100 },
+            { 80, 100 },
+            { 70, 100 },
+            { 60, 100 },
+            { 51, 100 }
+          }
+  };
+
+  std::vector<
+    std::vector<
+      SegmentType>
+        > expectedCandidates {
+          {
+            { 49, 100 },  //  49% - under the default threshold of 50%
+            { 50, 100 }
+          },
+          {
+          }
+  };
+
+  auto getSegmentAttributes = [](
+    const SegmentType& seg,
+    tier::SegmentAttributes& attrs) {
+      attrs.liveDocsCount = seg.first;
+      attrs.docsCount = seg.second;
+    };
+
+  for (size_t i = 0; i < testcases.size(); i++) {
+    auto& testcase = testcases[i];
+    const auto& expectedCandidate = expectedCandidates[i];
+
+    tier::ConsolidationCandidate<SegmentType> best;
+
+    //  returns true if a cleanup candidate is found, false otherwise.
+    auto result = tier::findBestCleanupCandidate<SegmentType>(testcase, getSegmentAttributes, best);
+
+    ASSERT_EQ(result, expectedCandidate.size() > 0);
+
+    if (result) {
+      ASSERT_EQ(std::distance(best.first(), best.last() + 1), expectedCandidate.size());
+
+      //  Compare individual elements of candidate
+      auto itr = best.first();
+      size_t j = 0;
+      while (j < expectedCandidate.size()) {
+        ASSERT_EQ(expectedCandidate[j++], *itr++);
+      }
+    }
+  }
+}
+
+//  Allow single segment cleanup
+TEST(ConsolidationTierTest, SingleSegmentCleanup) {
+
+  using LIVE_DOCS_COUNT = int;
+  using DOCS_COUNT = int;
+  using SegmentType = std::pair<LIVE_DOCS_COUNT, DOCS_COUNT>;
+
+    std::vector<SegmentType> testcase {
+            { 44, 100 }
+          };
+
+  auto getSegmentAttributes = [](
+    const SegmentType& seg,
+    tier::SegmentAttributes& attrs) {
+      attrs.liveDocsCount = seg.first;
+      attrs.docsCount = seg.second;
+    };
+
+    tier::ConsolidationCandidate<SegmentType> best;
+    auto result = tier::findBestCleanupCandidate<SegmentType>(testcase, getSegmentAttributes, best);
+
+    ASSERT_TRUE(result);
+    ASSERT_EQ(best.first()->first, 44);
+    ASSERT_EQ(best.last()->second, 100);
+}
+
+//  Cleanup before consolidation
+TEST(ConsolidationTierTest, CleanupBeforeConsolidation) {
+    irs::index_utils::ConsolidateTier options;
+    options.max_segments_bytes = 100000;  // max size of the merge
+
+    auto policy = irs::index_utils::MakePolicy(options);
+
+    //  test correct selection of candidates
+    {
+      irs::ConsolidatingSegments consolidating_segments;
+      irs::IndexMeta meta;
+      AddSegment(meta, "0", 100, 100, 10);
+      AddSegment(meta, "1", 100, 100, 40);
+      AddSegment(meta, "2", 100, 100, 60);
+      AddSegment(meta, "3", 100, 100, 70);
+      AddSegment(meta, "4", 100, 50, 300);
+      IndexReaderMock reader{meta};
+
+      const std::vector<std::vector<size_t>> expected_tiers{
+        {4},
+        {0, 1, 2, 3}
       };
 
       for (size_t i = 0; i < expected_tiers.size(); i++) {
@@ -597,4 +888,56 @@ TEST(ConsolidationTierTest, SkewedSegments) {
         }
       }
     }
+}
+
+//  Combined live percentage within threshold
+TEST(ConsolidationTierTest, CombinedLivePercentageWithinThreshold) {
+
+  using LIVE_DOCS_COUNT = int;
+  using DOCS_COUNT = int;
+  using SegmentType = std::pair<LIVE_DOCS_COUNT, DOCS_COUNT>;
+
+  //  Segments with individual- and combined- live % over 50%
+  std::vector<SegmentType> segments {
+        { 50, 90 },
+        { 60, 100 }
+  };
+
+  auto getSegmentAttributes = [](
+    const SegmentType& seg,
+    tier::SegmentAttributes& attrs) {
+      attrs.liveDocsCount = seg.first;
+      attrs.docsCount = seg.second;
+    };
+
+  //  No cleanup candidates should be selected here.
+  tier::ConsolidationCandidate<SegmentType> best;
+  auto result = tier::findBestCleanupCandidate<SegmentType>(segments, getSegmentAttributes, best);
+
+  ASSERT_FALSE(result);
+
+  //  Add a segment with a very low live %.
+  //  The combined live % of all segments should now be
+  //  within the threshold.
+  segments.emplace_back(20, 100);
+  result = tier::findBestCleanupCandidate<SegmentType>(segments, getSegmentAttributes, best);
+  ASSERT_TRUE(result);
+
+  //  findBestCleanupCandidate sorts the candidates in
+  //  the incresing order of their live %.
+  std::vector<SegmentType> expected {
+        { 20, 100 },
+        { 50, 90 },
+        { 60, 100 },
+  };
+
+  //  [first, last] is inclusive of bounds.
+  ASSERT_EQ(std::distance(best.first(), best.last() + 1), expected.size());
+
+  //  Compare individual elements of candidate
+  auto itr = best.first();
+  size_t j = 0;
+  while (j < expected.size()) {
+    ASSERT_EQ(expected[j++], *itr++);
+  }
 }
