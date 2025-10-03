@@ -265,6 +265,7 @@ class bounded_object_pool {
 
  private:
   void wait_for_free_slots() const {
+#ifdef FIXWINDOWS
     using namespace std::chrono_literals;
 
     std::unique_lock lock{mutex_};
@@ -272,6 +273,7 @@ class bounded_object_pool {
     if (free_list_.empty()) {
       cond_.wait_for(lock, 100ms);
     }
+#endif
   }
 
   void unlock(node_type& slot) const {
