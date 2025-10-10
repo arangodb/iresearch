@@ -70,13 +70,13 @@ ConsolidationPolicy MakePolicy(const ConsolidateDocsFill& options);
 
 struct ConsolidateTier {
   // minimum allowed number of segments to consolidate at once
-  size_t min_segments = 1;
+  size_t min_segments = 50;
   // maximum allowed number of segments to consolidate at once
-  size_t max_segments = 10;
+  size_t max_segments = 200;
   // maxinum allowed size of all consolidated segments
-  size_t max_segments_bytes = size_t(5) * (1 << 30);
+  size_t max_segments_bytes = size_t(8) * (1 << 30);
   // treat all smaller segments as equal for consolidation selection
-  size_t floor_segment_bytes = size_t(2) * (1 << 20);
+  size_t floor_segment_bytes = size_t(24) * (1 << 20);
   // filter out candidates with score less than min_score
   double_t min_score = 0.;
 };
