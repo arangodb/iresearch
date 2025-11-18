@@ -1366,7 +1366,11 @@ ConsolidationResult IndexWriter::Consolidate(
 
     // FIXME TODO remove from 'consolidating_segments_' any segments in
     // 'committed_state_' or 'pending_state_' to avoid data duplication
-    policy(candidates, *committed_reader, consolidating_segments_);
+    policy(candidates, *committed_reader, consolidating_segments_, consolidation_merge_or_cleanup_);
+
+    // Alternate between merge and cleanup operations in consolidation
+    // to achieve fairness.
+    consolidation_merge_or_cleanup_ = !consolidation_merge_or_cleanup_;
 
     switch (candidates.size()) {
       case 0:  // nothing to consolidate

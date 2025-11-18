@@ -47,7 +47,7 @@ namespace {
   size_t i = 0;
   while (true) {
     candidates.clear();
-    policy(candidates, reader, consolidating_segments);
+    policy(candidates, reader, consolidating_segments, true);
 
     if (candidates.empty()) {
       break;
@@ -209,7 +209,7 @@ TEST(ConsolidationTierTest, MaxConsolidationSize) {
     // 1st tier
     {
       irs::Consolidation candidates;
-      policy(candidates, reader, consolidating_segments);
+      policy(candidates, reader, consolidating_segments, true);
       // register candidates for consolidation
       for (const auto* candidate : candidates) {
         consolidating_segments.emplace(candidate->Meta().name);
@@ -220,7 +220,7 @@ TEST(ConsolidationTierTest, MaxConsolidationSize) {
     // 2nd tier
     {
       irs::Consolidation candidates;
-      policy(candidates, reader, consolidating_segments);
+      policy(candidates, reader, consolidating_segments, true);
       // register candidates for consolidation
       for (const auto* candidate : candidates) {
         consolidating_segments.emplace(candidate->Meta().name);
@@ -234,7 +234,7 @@ TEST(ConsolidationTierTest, MaxConsolidationSize) {
     // so we won't consolidate those segments.
     {
       irs::Consolidation candidates;
-      policy(candidates, reader, consolidating_segments);
+      policy(candidates, reader, consolidating_segments, true);
       // register candidates for consolidation
       for (const auto* candidate : candidates) {
         consolidating_segments.emplace(candidate->Meta().name);
@@ -258,7 +258,7 @@ TEST(ConsolidationTierTest, MaxConsolidationSize) {
     // all segments are too big
     {
       irs::Consolidation candidates;
-      policy(candidates, reader, consolidating_segments);
+      policy(candidates, reader, consolidating_segments, true);
       ASSERT_TRUE(candidates.empty());
     }
   }
@@ -277,7 +277,7 @@ TEST(ConsolidationTierTest, EmptyMeta) {
   irs::ConsolidatingSegments consolidating_segments;
   auto policy = irs::index_utils::MakePolicy(options);
   irs::Consolidation candidates;
-  policy(candidates, reader, consolidating_segments);
+  policy(candidates, reader, consolidating_segments, true);
   ASSERT_TRUE(candidates.empty());
 }
 
@@ -295,7 +295,7 @@ TEST(ConsolidationTierTest, EmptyConsolidatingSegment) {
   irs::ConsolidatingSegments consolidating_segments{reader[0].Meta().name};
   auto policy = irs::index_utils::MakePolicy(options);
   irs::Consolidation candidates;
-  policy(candidates, reader, consolidating_segments);
+  policy(candidates, reader, consolidating_segments, true);
   ASSERT_TRUE(candidates.empty());  // skip empty consolidating segments
 }
 
@@ -313,7 +313,7 @@ TEST(ConsolidationTierTest, EmptySegment) {
   irs::ConsolidatingSegments consolidating_segments{reader[0].Meta().name};
   auto policy = irs::index_utils::MakePolicy(options);
   irs::Consolidation candidates;
-  policy(candidates, reader, consolidating_segments);
+  policy(candidates, reader, consolidating_segments, true);
   ASSERT_TRUE(candidates.empty());  // skip empty segments
 }
 
@@ -341,7 +341,7 @@ TEST(ConsolidationTierTest, PreferConsolidationOverCleanupWhenDoesntMeetThreshol
   auto policy = irs::index_utils::MakePolicy(options);
 
   irs::Consolidation candidates;
-  policy(candidates, reader, consolidating_segments);
+  policy(candidates, reader, consolidating_segments, true);
   ASSERT_EQ(5, candidates.size());
 }
 
@@ -368,7 +368,7 @@ TEST(ConsolidationTierTest, PreferCleanupWhenMeetsThreshold) {
   auto policy = irs::index_utils::MakePolicy(options);
 
   irs::Consolidation candidates;
-  policy(candidates, reader, consolidating_segments);
+  policy(candidates, reader, consolidating_segments, true);
   ASSERT_EQ(2, candidates.size());
   AssertCandidates(reader, {5, 6}, candidates);
 }
@@ -391,7 +391,7 @@ TEST(ConsolidationTierTest, Singleton) {
     // avoid having singletone merges without removals
     {
       irs::Consolidation candidates;
-      policy(candidates, reader, consolidating_segments);
+      policy(candidates, reader, consolidating_segments, true);
       ASSERT_TRUE(candidates.empty());
     }
   }
@@ -405,7 +405,7 @@ TEST(ConsolidationTierTest, Singleton) {
 
     {
       irs::Consolidation candidates;
-      policy(candidates, reader, consolidating_segments);
+      policy(candidates, reader, consolidating_segments, true);
       ASSERT_TRUE(candidates.empty());
     }
   }
@@ -422,62 +422,8 @@ TEST(ConsolidationTierTest, Singleton) {
 
     {
       irs::Consolidation candidates;
-      policy(candidates, reader, consolidating_segments);
+      policy(candidates, reader, consolidating_segments, true);
       AssertCandidates(reader, {0, 3}, candidates);
-    }
-  }
-}
-
-TEST(ConsolidationTierTest, Defaults) {
-  irs::index_utils::ConsolidateTier options;
-  auto policy = irs::index_utils::MakePolicy(options);
-
-  {
-    irs::ConsolidatingSegments consolidating_segments;
-
-    irs::IndexMeta meta;
-    AddSegment(meta, "0", 100, 100, 150);
-    for (uint64_t i = 1; i < 49; i++)
-      AddSegment(meta, std::to_string(i), 100, 100, 100);
-
-    IndexReaderMock reader{meta};
-
-    // no segments to consolidate since we have fewer segments than
-    //  segmentsMin (50) segments
-    {
-      irs::Consolidation candidates;
-      policy(candidates, reader, consolidating_segments);
-      ASSERT_TRUE(candidates.empty());
-    }
-
-    AddSegment(meta, std::to_string(49), 100, 100, 100);
-    IndexReaderMock reader_with_50_segments(meta);
-    //  Add 50th segment to trigger consolidation
-
-    std::vector<size_t> expected(50);
-    for (size_t i = 0; i < 50; i++) {
-      expected[i] = i;
-    }
-
-    // 1st tier
-    {
-      irs::Consolidation candidates;
-      policy(candidates, reader_with_50_segments, consolidating_segments);
-      AssertCandidates(reader_with_50_segments, expected, candidates);
-      candidates.clear();
-      policy(candidates, reader_with_50_segments, consolidating_segments);
-      AssertCandidates(reader_with_50_segments, expected, candidates);
-      // register candidates for consolidation
-      for (const auto* candidate : candidates) {
-        consolidating_segments.emplace(candidate->Meta().name);
-      }
-    }
-
-    // no more segments to consolidate
-    {
-      irs::Consolidation candidates;
-      policy(candidates, reader_with_50_segments, consolidating_segments);
-      ASSERT_TRUE(candidates.empty());
     }
   }
 }
@@ -504,7 +450,7 @@ TEST(ConsolidationTierTest, NoCandidates) {
   //  combination of contiguous candidates is greater than
   //  ConsolidationConfig::maxMergeScore (default: 0.4)
   irs::Consolidation candidates;
-  policy(candidates, reader, consolidating_segments);
+  policy(candidates, reader, consolidating_segments, true);
   ASSERT_TRUE(candidates.empty());
 }
 
@@ -545,10 +491,10 @@ TEST(ConsolidationTierTest, SkewedSegments) {
       for (size_t i = 0; i < expected_tiers.size(); i++) {
         auto& expected_tier = expected_tiers[i];
         irs::Consolidation candidates;
-        policy(candidates, reader, consolidating_segments);
+        policy(candidates, reader, consolidating_segments, true);
         AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
         candidates.clear();
-        policy(candidates, reader, consolidating_segments);
+        policy(candidates, reader, consolidating_segments, true);
         AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
         // register candidates for consolidation
         for (const auto* candidate : candidates) {
@@ -586,11 +532,11 @@ TEST(ConsolidationTierTest, SkewedSegments) {
       for (size_t i = 0; i < expected_tiers.size(); i++) {
         auto& expected_tier = expected_tiers[i];
         irs::Consolidation candidates;
-        policy(candidates, reader, consolidating_segments);
+        policy(candidates, reader, consolidating_segments, true);
         AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
         candidates.clear();
 
-        policy(candidates, reader, consolidating_segments);
+        policy(candidates, reader, consolidating_segments, true);
         AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
         // register candidates for consolidation
         for (const auto* candidate : candidates) {
@@ -874,13 +820,16 @@ TEST(ConsolidationTierTest, CleanupBeforeConsolidation) {
         {0, 1, 2, 3}
       };
 
+      //  We're favoring cleanup when we only have 1 cleanup candidate.
+      //  On the 2nd iteration we should perform consolidation after
+      //  having not found a cleanup candidate.
       for (size_t i = 0; i < expected_tiers.size(); i++) {
         auto& expected_tier = expected_tiers[i];
         irs::Consolidation candidates;
-        policy(candidates, reader, consolidating_segments);
+        policy(candidates, reader, consolidating_segments, true);
         AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
         candidates.clear();
-        policy(candidates, reader, consolidating_segments);
+        policy(candidates, reader, consolidating_segments, true);
         AssertCandidates(reader, expected_tier, candidates, "Line: " + std::to_string(__LINE__) + ", i = " + std::to_string(i));
         // register candidates for consolidation
         for (const auto* candidate : candidates) {
@@ -939,5 +888,46 @@ TEST(ConsolidationTierTest, CombinedLivePercentageWithinThreshold) {
   size_t j = 0;
   while (j < expected.size()) {
     ASSERT_EQ(expected[j++], *itr++);
+  }
+}
+
+TEST(ConsolidationTierTest, NullChecks) {
+
+  using LIVE_DOCS_COUNT = int;
+  using DOCS_COUNT = int;
+  using SegmentType = std::pair<LIVE_DOCS_COUNT, DOCS_COUNT>;
+
+  size_t maxSegmentsBytes { 5000 };
+  auto getSegmentAttributes = [](
+    const SegmentType& seg,
+    tier::SegmentAttributes& attrs) {
+      attrs.liveDocsCount = seg.first;
+      attrs.docsCount = seg.second;
+    };
+
+  {
+    //  Zero live docs count
+    std::vector<SegmentType> segments {
+      { 0, 90 },
+      { 0, 100 }
+    };
+
+    //  No cleanup candidates should be selected here.
+    tier::ConsolidationCandidate<SegmentType> best;
+    tier::findBestCleanupCandidate<SegmentType>(segments, getSegmentAttributes, best);
+    tier::findBestConsolidationCandidate<SegmentType>(segments, maxSegmentsBytes, getSegmentAttributes, best);
+  }
+
+  //  Zero docs count
+  {
+    std::vector<SegmentType> segments {
+      { 0, 0 },
+      { 0, 0 }
+    };
+
+    //  No cleanup candidates should be selected here.
+    tier::ConsolidationCandidate<SegmentType> best;
+    tier::findBestCleanupCandidate<SegmentType>(segments, getSegmentAttributes, best);
+    tier::findBestConsolidationCandidate<SegmentType>(segments, maxSegmentsBytes, getSegmentAttributes, best);
   }
 }

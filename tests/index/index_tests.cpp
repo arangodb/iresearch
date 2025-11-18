@@ -7150,7 +7150,8 @@ TEST_P(index_test_case, concurrent_consolidation) {
         auto policy = [&i, &num_segments](
                         irs::Consolidation& candidates,
                         const irs::IndexReader& reader,
-                        const irs::ConsolidatingSegments& segments) mutable {
+                        const irs::ConsolidatingSegments& segments,
+                        bool /*favorCleanupOverMerge*/) mutable {
           num_segments = reader.size();
           ConsolidateRange(candidates, segments, reader, i, i + 2);
         };
@@ -7263,7 +7264,8 @@ TEST_P(index_test_case, concurrent_consolidation_dedicated_commit) {
         auto policy = [&i, &num_segments](
                         irs::Consolidation& candidates,
                         const irs::IndexReader& reader,
-                        const irs::ConsolidatingSegments& segments) mutable {
+                        const irs::ConsolidatingSegments& segments,
+                        bool /*favorCleanupOverMerge*/) mutable {
           num_segments = reader.size();
           ConsolidateRange(candidates, segments, reader, i, i + 2);
         };
@@ -7390,7 +7392,8 @@ TEST_P(index_test_case, concurrent_consolidation_two_phase_dedicated_commit) {
         auto policy = [&i, &num_segments](
                         irs::Consolidation& candidates,
                         const irs::IndexReader& meta,
-                        const irs::ConsolidatingSegments& segments) mutable {
+                        const irs::ConsolidatingSegments& segments,
+                        bool /*favorCleanupOverMerge*/) mutable {
           num_segments = meta.size();
           ConsolidateRange(candidates, segments, meta, i, i + 2);
         };
@@ -7518,7 +7521,8 @@ TEST_P(index_test_case, concurrent_consolidation_cleanup) {
       while (num_segments > 1) {
         auto policy = [&](irs::Consolidation& candidates,
                           const irs::IndexReader& reader,
-                          const irs::ConsolidatingSegments& segments) mutable {
+                          const irs::ConsolidatingSegments& segments,
+                          bool /*favorCleanupOverMerge*/) mutable {
           num_segments = reader.size();
           ConsolidateRange(candidates, segments, reader, i, i + 2);
         };
@@ -7600,7 +7604,8 @@ TEST_P(index_test_case, consolidate_single_segment) {
   auto check_consolidating_segments =
     [&expected_consolidating_segments](
       irs::Consolidation& /*candidates*/, const irs::IndexReader& reader,
-      const irs::ConsolidatingSegments& consolidating_segments) {
+      const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
       ASSERT_EQ(expected_consolidating_segments.size(),
                 consolidating_segments.size());
       for (auto i : expected_consolidating_segments) {
@@ -7792,7 +7797,8 @@ TEST_P(index_test_case, segment_consolidate_long_running) {
       auto check_consolidating_segments =
         [&expected_consolidating_segments](
           irs::Consolidation& /*candidates*/, const irs::IndexReader& reader,
-          const irs::ConsolidatingSegments& consolidating_segments) {
+          const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
           ASSERT_EQ(expected_consolidating_segments.size(),
                     consolidating_segments.size());
           for (auto i : expected_consolidating_segments) {
@@ -7973,7 +7979,8 @@ TEST_P(index_test_case, segment_consolidate_long_running) {
 
       auto check_consolidating_segments =
         [](irs::Consolidation& /*candidates*/, const irs::IndexReader& /*meta*/,
-           const irs::ConsolidatingSegments& consolidating_segments) {
+           const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
           ASSERT_TRUE(consolidating_segments.empty());
         };
       // check segments registered for consolidation
@@ -8147,7 +8154,8 @@ TEST_P(index_test_case, segment_consolidate_long_running) {
       auto check_consolidating_segments =
         [&expected_consolidating_segments](
           irs::Consolidation& /*candidates*/, const irs::IndexReader& reader,
-          const irs::ConsolidatingSegments& consolidating_segments) {
+          const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
           ASSERT_EQ(expected_consolidating_segments.size(),
                     consolidating_segments.size());
           for (auto i : expected_consolidating_segments) {
@@ -8308,7 +8316,8 @@ TEST_P(index_test_case, segment_consolidate_long_running) {
       auto check_consolidating_segments =
         [&expected_consolidating_segments](
           irs::Consolidation& /*candidates*/, const irs::IndexReader& reader,
-          const irs::ConsolidatingSegments& consolidating_segments) {
+          const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
           ASSERT_EQ(expected_consolidating_segments.size(),
                     consolidating_segments.size());
           for (auto i : expected_consolidating_segments) {
@@ -8441,7 +8450,8 @@ TEST_P(index_test_case, segment_consolidate_clear_commit) {
   auto check_consolidating_segments =
     [&expected_consolidating_segments](
       irs::Consolidation& /*candidates*/, const irs::IndexReader& reader,
-      const irs::ConsolidatingSegments& consolidating_segments) {
+      const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
       ASSERT_EQ(expected_consolidating_segments.size(),
                 consolidating_segments.size());
       for (auto i : expected_consolidating_segments) {
@@ -8603,7 +8613,8 @@ TEST_P(index_test_case, segment_consolidate_commit) {
   auto check_consolidating_segments =
     [&expected_consolidating_segments](
       irs::Consolidation& /*candidates*/, const irs::IndexReader& reader,
-      const irs::ConsolidatingSegments& consolidating_segments) {
+      const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
       ASSERT_EQ(expected_consolidating_segments.size(),
                 consolidating_segments.size());
       for (auto i : expected_consolidating_segments) {
@@ -9005,7 +9016,8 @@ TEST_P(index_test_case, consolidate_check_consolidating_segments) {
   {
     auto check_consolidating_segments =
       [](irs::Consolidation& /*candidates*/, const irs::IndexReader& /*reader*/,
-         const irs::ConsolidatingSegments& consolidating_segments) {
+         const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
         ASSERT_TRUE(consolidating_segments.empty());
       };
     ASSERT_TRUE(writer->Consolidate(check_consolidating_segments));
@@ -9024,7 +9036,8 @@ TEST_P(index_test_case, consolidate_check_consolidating_segments) {
   for (size_t i = 0, j = 0; i < SEGMENTS_COUNT / 2; ++i) {
     auto merge_adjacent =
       [&j](irs::Consolidation& candidates, const irs::IndexReader& reader,
-           const irs::ConsolidatingSegments& /*consolidating_segments*/) {
+           const irs::ConsolidatingSegments& /*consolidating_segments*/,
+          bool /*favorCleanupOverMerge*/) {
         ASSERT_TRUE(j < reader.size());
         candidates.emplace_back(&reader[j++]);
         ASSERT_TRUE(j < reader.size());
@@ -9038,7 +9051,8 @@ TEST_P(index_test_case, consolidate_check_consolidating_segments) {
   {
     auto check_consolidating_segments =
       [](irs::Consolidation& /*candidates*/, const irs::IndexReader& reader,
-         const irs::ConsolidatingSegments& consolidating_segments) {
+         const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
         ASSERT_EQ(reader.size(), consolidating_segments.size());
         for (auto& expected_consolidating_segment : reader) {
           ASSERT_TRUE(consolidating_segments.contains(
@@ -9055,7 +9069,8 @@ TEST_P(index_test_case, consolidate_check_consolidating_segments) {
   {
     auto check_consolidating_segments =
       [](irs::Consolidation& /*candidates*/, const irs::IndexReader& /*reader*/,
-         const irs::ConsolidatingSegments& consolidating_segments) {
+         const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
         ASSERT_TRUE(consolidating_segments.empty());
       };
     ASSERT_TRUE(writer->Consolidate(check_consolidating_segments));
@@ -9116,7 +9131,8 @@ TEST_P(index_test_case, segment_consolidate_pending_commit) {
   auto check_consolidating_segments =
     [&expected_consolidating_segments](
       irs::Consolidation& /*candidates*/, const irs::IndexReader& reader,
-      const irs::ConsolidatingSegments& consolidating_segments) {
+      const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
       ASSERT_EQ(expected_consolidating_segments.size(),
                 consolidating_segments.size());
       for (auto i : expected_consolidating_segments) {
@@ -9129,7 +9145,8 @@ TEST_P(index_test_case, segment_consolidate_pending_commit) {
   auto check_consolidating_segments_name_only =
     [&expected_consolidating_segments](
       irs::Consolidation& /*candidates*/, const irs::IndexReader& reader,
-      const irs::ConsolidatingSegments& consolidating_segments) {
+      const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
       ASSERT_EQ(expected_consolidating_segments.size(),
                 consolidating_segments.size());
       for (auto i : expected_consolidating_segments) {
@@ -9954,10 +9971,11 @@ TEST_P(index_test_case, segment_consolidate_pending_commit) {
 
     auto do_commit_and_consolidate_count =
       [&](irs::Consolidation& candidates, const irs::IndexReader& reader,
-          const irs::ConsolidatingSegments& consolidating_segments) {
+          const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
         auto sub_policy =
           irs::index_utils::MakePolicy(irs::index_utils::ConsolidateCount());
-        sub_policy(candidates, reader, consolidating_segments);
+        sub_policy(candidates, reader, consolidating_segments, true);
         writer->Commit();
         AssertSnapshotEquality(*writer);
       };
@@ -10148,7 +10166,8 @@ TEST_P(index_test_case, segment_consolidate_pending_commit) {
 
     auto do_commit_and_consolidate_count =
       [&](irs::Consolidation& candidates, const irs::IndexReader& reader,
-          const irs::ConsolidatingSegments& consolidating_segments) {
+          const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
         writer->Commit();
         AssertSnapshotEquality(*writer);
         writer->Begin();  // another commit to process pending
@@ -10157,7 +10176,7 @@ TEST_P(index_test_case, segment_consolidate_pending_commit) {
         AssertSnapshotEquality(*writer);
         auto sub_policy =
           irs::index_utils::MakePolicy(irs::index_utils::ConsolidateCount());
-        sub_policy(candidates, reader, consolidating_segments);
+        sub_policy(candidates, reader, consolidating_segments, true);
       };
 
     // this should fail as segments 1 and 0 are actually consolidated on
@@ -10228,7 +10247,8 @@ TEST_P(index_test_case, segment_consolidate_pending_commit) {
 
     auto do_commit_and_consolidate_count =
       [&](irs::Consolidation& candidates, const irs::IndexReader& reader,
-          const irs::ConsolidatingSegments& consolidating_segments) {
+          const irs::ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
         writer->Commit();
         AssertSnapshotEquality(*writer);
         writer->Begin();  // another commit to process pending
@@ -10240,7 +10260,7 @@ TEST_P(index_test_case, segment_consolidate_pending_commit) {
         writer->Begin();
         auto sub_policy =
           irs::index_utils::MakePolicy(irs::index_utils::ConsolidateCount());
-        sub_policy(candidates, reader, consolidating_segments);
+        sub_policy(candidates, reader, consolidating_segments, true);
       };
 
     // this should fail as segments 1 and 0 are actually consolidated on
@@ -13063,7 +13083,8 @@ TEST_P(index_test_case, segment_consolidate) {
 
   auto merge_if_masked = [](irs::Consolidation& candidates,
                             const irs::IndexReader& reader,
-                            const irs::ConsolidatingSegments&) -> void {
+                            const irs::ConsolidatingSegments&,
+                            bool /*favorCleanupOverMerge*/) -> void {
     for (auto& segment : reader) {
       if (segment.Meta().live_docs_count != segment.Meta().docs_count) {
         candidates.emplace_back(&segment);

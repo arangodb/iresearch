@@ -51,7 +51,8 @@ namespace irs::index_utils {
 
 ConsolidationPolicy MakePolicy(const ConsolidateBytes& options) {
   return [options](Consolidation& candidates, const IndexReader& reader,
-                   const ConsolidatingSegments& consolidating_segments) {
+                   const ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
     const auto byte_threshold = options.threshold;
     size_t all_segment_bytes_size = 0;
     const auto segment_count = reader.size();
@@ -82,7 +83,8 @@ ConsolidationPolicy MakePolicy(const ConsolidateBytes& options) {
 
 ConsolidationPolicy MakePolicy(const ConsolidateBytesAccum& options) {
   return [options](Consolidation& candidates, const IndexReader& reader,
-                   const ConsolidatingSegments& consolidating_segments) {
+                   const ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
     auto byte_threshold = options.threshold;
     size_t all_segment_bytes_size = 0;
     std::vector<std::pair<size_t, const SubReader*>> segments;
@@ -121,7 +123,8 @@ ConsolidationPolicy MakePolicy(const ConsolidateBytesAccum& options) {
 
 ConsolidationPolicy MakePolicy(const ConsolidateCount& options) {
   return [options](Consolidation& candidates, const IndexReader& reader,
-                   const ConsolidatingSegments&) {
+                   const ConsolidatingSegments&,
+                  bool /*favorCleanupOverMerge*/) {
     // merge first 'threshold' segments
     for (size_t i = 0, count = std::min(options.threshold, reader.size());
          i < count; ++i) {
@@ -132,7 +135,8 @@ ConsolidationPolicy MakePolicy(const ConsolidateCount& options) {
 
 ConsolidationPolicy MakePolicy(const ConsolidateDocsFill& options) {
   return [options](Consolidation& candidates, const IndexReader& reader,
-                   const ConsolidatingSegments& consolidating_segments) {
+                   const ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
     auto fill_threshold = options.threshold;
     auto threshold = std::clamp(fill_threshold, 0.f, 1.f);
 
@@ -154,7 +158,8 @@ ConsolidationPolicy MakePolicy(const ConsolidateDocsFill& options) {
 
 ConsolidationPolicy MakePolicy(const ConsolidateDocsLive& options) {
   return [options](Consolidation& candidates, const IndexReader& meta,
-                   const ConsolidatingSegments& consolidating_segments) {
+                   const ConsolidatingSegments& consolidating_segments,
+                  bool /*favorCleanupOverMerge*/) {
     const auto docs_threshold = options.threshold;
     const auto all_segment_docs_count = meta.live_docs_count();
     const auto segment_count = meta.size();
@@ -200,7 +205,8 @@ ConsolidationPolicy MakePolicy(const ConsolidateTier& options) {
   return [max_segments_per_tier, min_segments_per_tier, floor_segment_bytes,
           max_segments_bytes,
           min_score](Consolidation& candidates, const IndexReader& reader,
-                     const ConsolidatingSegments& consolidating_segments) {
+                     const ConsolidatingSegments& consolidating_segments,
+                     bool favorCleanupOverMerge) {
     // size of segments in bytes that are currently under consolidation
     [[maybe_unused]] size_t consolidating_size = 0;
     // the smallest segment
@@ -292,33 +298,48 @@ ConsolidationPolicy MakePolicy(const ConsolidateTier& options) {
       }
     }
 
-    //  No point in attempting consolidation if we don't have
-    //  enough segments to fill the consolidation window
-    if (sorted_segments.size() < tier::ConsolidationConfig::candidate_size)
-      return;
-
     ///////////////////////////////////////////////////////////////////////////
     /// Stage 3
-    /// Find cleanup candidates
+    /// Find cleanup and merge candidates
     ///////////////////////////////////////////////////////////////////////////
 
+    auto cleanup = [&](tier::ConsolidationCandidate<tier::SegmentStats>& best) -> bool {
+      return tier::findBestCleanupCandidate<tier::SegmentStats>(sorted_segments, tier::getSegmentDimensions, best);
+    };
+
+    auto merge = [&](tier::ConsolidationCandidate<tier::SegmentStats>& best) -> bool {
+      return tier::findBestConsolidationCandidate<tier::SegmentStats>(
+          sorted_segments,
+          max_segments_bytes,
+          tier::getSegmentDimensions, best);
+    };
+
     tier::ConsolidationCandidate<tier::SegmentStats> best;
-    auto ret = tier::findBestCleanupCandidate<tier::SegmentStats>(sorted_segments, tier::getSegmentDimensions, best);
-    if (ret && best.initialized && std::distance(best.first(), best.last()) >= 0) {
-      std::copy(best.first(), best.last() + 1, std::back_inserter(candidates));
-      return;
+
+    //  We use this arg to alternate between cleanup and
+    //  merge giving both a fair chance during consolidation.
+    //  Cleanup will reclaim disk space (possibly reducing no.
+    //  of segments as well) whereas merging will reduce the no.
+    //  of segments.
+    //  However, if the favored operation yields no segments,
+    //  we try the other operation so as not to lose this
+    //  consolidation interval.
+    if (favorCleanupOverMerge) {
+      if (!cleanup(best))
+        merge(best);
     }
+    else {
+      if (!merge(best))
+        cleanup(best);
+    }
+
+    if (!best.initialized)
+      return;
 
     ///////////////////////////////////////////////////////////////////////////
     /// Stage 4
     /// find consolidation candidates
     ///////////////////////////////////////////////////////////////////////////
-
-    if (!tier::findBestConsolidationCandidate<tier::SegmentStats>(
-          sorted_segments,
-          max_segments_bytes,
-          tier::getSegmentDimensions, best))
-      return;
 
     candidates.reserve(std::distance(best.first(), best.last()) + 1);
     std::copy(best.first(), best.last() + 1, std::back_inserter(candidates));

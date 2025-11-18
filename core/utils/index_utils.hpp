@@ -62,7 +62,7 @@ namespace tier {
   };
 
   struct ConsolidationConfig {
-    static constexpr size_t candidate_size { 2 };   //  candidate selection window size: 4
+    static constexpr size_t min_merge_window_size { 2 };   //  min window size for segments merge 
     static constexpr double maxMergeScore { 0.4 };  //  max score allowed for candidates consolidation.
                                                     //  Skip consolidation if candidate score is greater
                                                     //  than this value.
@@ -192,23 +192,27 @@ namespace tier {
           )>& getSegmentAttributes,
     tier::ConsolidationCandidate<Segment>& best) {
 
+      if (segments.empty())
+        return false;
+
       auto segmentSortFunc = [&](const Segment& left, const Segment& right) {
 
         tier::SegmentAttributes attrs;
         getSegmentAttributes(left, attrs);
-        auto lLivePerc = static_cast<double>(attrs.liveDocsCount) / attrs.docsCount;
+        double lLivePerc;
+        lLivePerc = (0 == attrs.docsCount ? 0 : static_cast<double>(attrs.liveDocsCount) / attrs.docsCount);
 
         getSegmentAttributes(right, attrs);
-        auto rLivePerc = static_cast<double>(attrs.liveDocsCount) / attrs.docsCount;
+        auto rLivePerc = (0 == attrs.docsCount ? 0 : static_cast<double>(attrs.liveDocsCount) / attrs.docsCount);
 
         return lLivePerc < rLivePerc;
       };
 
       std::sort(segments.begin(), segments.end(), segmentSortFunc);
 
-      auto count = 0;
-      auto totalDocsCount = 0;
-      auto totalLiveDocsCount = 0;
+      uint32_t count = 0;
+      uint64_t totalDocsCount = 0;
+      uint64_t totalLiveDocsCount = 0;
       double livePerc;
 
       for (auto itr = segments.begin(); itr != segments.end(); itr++) {
@@ -265,6 +269,9 @@ namespace tier {
             )>& getSegmentAttributes,
       tier::ConsolidationCandidate<Segment>& best) {
 
+        if (segments.size() < tier::ConsolidationConfig::min_merge_window_size)
+          return false;
+
         //  sort segments by segment size
         auto comp = [&](const Segment& lhs, const Segment& rhs) {
 
@@ -274,7 +281,7 @@ namespace tier {
           getSegmentAttributes(lhs, lAttrs);
           getSegmentAttributes(rhs, rAttrs);
 
-          if (lAttrs.byteSize == rAttrs.byteSize) {
+          if (lAttrs.byteSize == rAttrs.byteSize && lAttrs.docsCount > 0 && rAttrs.docsCount > 0) {
 
             double lfill_factor = static_cast<double>(lAttrs.liveDocsCount) / lAttrs.docsCount;
             double rfill_factor = static_cast<double>(rAttrs.liveDocsCount) / rAttrs.docsCount;
@@ -290,7 +297,7 @@ namespace tier {
         //  We start with a min. window size of 2
         //  since a window of size 1 will always
         //  give us a skew of 1.0.
-        uint64_t minWindowSize { tier::ConsolidationConfig::candidate_size };
+        uint64_t minWindowSize { tier::ConsolidationConfig::min_merge_window_size };
         auto front = segments.begin();
         auto rear = front + minWindowSize - 1;
         tier::ConsolidationCandidate<Segment> candidate(front, rear, getSegmentAttributes);
@@ -309,7 +316,8 @@ namespace tier {
             continue;
           }
 
-          if (!best.initialized || best.mergeScore > candidate.mergeScore)
+          if (candidate.mergeScore <= tier::ConsolidationConfig::maxMergeScore &&
+              (!best.initialized || best.mergeScore > candidate.mergeScore))
             best = candidate;
 
           if (candidate.last() == (segments.end() - 1))
@@ -318,8 +326,7 @@ namespace tier {
           candidate.push_back();
         }
 
-        return (best.initialized &&
-                best.mergeScore <= tier::ConsolidationConfig::maxMergeScore);
+        return best.initialized;
       }
 }
 
