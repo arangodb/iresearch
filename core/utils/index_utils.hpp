@@ -92,8 +92,8 @@ namespace tier {
 
   template<typename Segment>
   struct ConsolidationCandidate {
-    using SegmentIterator = std::vector<Segment>::const_iterator;
-    using range_t = std::pair<SegmentIterator, SegmentIterator>;
+    using SegmentIterator = typename std::vector<Segment>::const_iterator;
+    using range_t = typename std::pair<SegmentIterator, SegmentIterator>;
 
     ConsolidationCandidate() = default;
 
