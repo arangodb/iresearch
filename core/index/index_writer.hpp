@@ -82,10 +82,18 @@ using ConsolidatingSegments = absl::flat_hash_set<std::string_view>;
 // meta the index meta containing segments to be considered
 // Consolidating_segments segments that are currently in progress
 // of consolidation
-// Final candidates are all segments selected by at least some policy
+// Final candidates are all segments selected by at least some policy.
+// favorCleanupOverMerge indicates whether to consolidate segments
+// that are suitable candidates to perform cleanup or to consolidate those
+// that are a better candidate to merge.
+// Cleanup reclaims disk space of deleted documents whereas the merge
+// reduces the total no. of segment files on disk.
 using ConsolidationPolicy =
-  std::function<void(Consolidation& candidates, const IndexReader& index,
-                     const ConsolidatingSegments& consolidating_segments)>;
+  std::function<void(
+                  Consolidation& candidates,
+                  const IndexReader& index,
+                  const ConsolidatingSegments& consolidating_segments,
+                  bool favorCleanupOverMerge)>;
 
 enum class ConsolidationError : uint32_t {
   // Consolidation failed
@@ -927,6 +935,12 @@ class IndexWriter : private util::noncopyable {
   // (modification during commit()/defragment()), payload_buf_
   std::mutex commit_lock_;
   std::recursive_mutex consolidation_lock_;
+  // During consolidation, we can either perform segments merge or segments cleanup.
+  // When consolidation_merge_or_cleanup_ is true, we attempt merge operation first
+  // during consolidation.
+  // When false, we attempt cleanup first.
+  // We use this to alternate between merge and cleanup for fair execution
+  bool consolidation_merge_or_cleanup_ { false };
   // segments that are under consolidation
   ConsolidatingSegments consolidating_segments_;
   // directory used for initialization of readers
