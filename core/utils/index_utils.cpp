@@ -186,27 +186,16 @@ ConsolidationPolicy MakePolicy(const ConsolidateDocsLive& options) {
 }
 
 ConsolidationPolicy MakePolicy(const ConsolidateTier& options) {
-  // can't merge less than 1 segment
-  const auto max_segments_per_tier =
-    (std::max)(size_t{1}, options.max_segments);
-  // can't merge less than 1 segment
-  auto min_segments_per_tier = (std::max)(size_t{1}, options.min_segments);
-
-  // ensure min_segments_per_tier <=  max_segments_per_tier
-  min_segments_per_tier =
-    (std::min)(min_segments_per_tier, max_segments_per_tier);
   const auto max_segments_bytes =
     (std::max)(size_t{1}, options.max_segments_bytes);
-  const auto floor_segment_bytes =
-    (std::max)(size_t{1}, options.floor_segment_bytes);
-  // skip consolidation that have score less than min_score
-  const auto min_score = options.min_score;
 
-  return [max_segments_per_tier, min_segments_per_tier, floor_segment_bytes,
-          max_segments_bytes,
-          min_score](Consolidation& candidates, const IndexReader& reader,
-                     const ConsolidatingSegments& consolidating_segments,
-                     bool favorCleanupOverMerge) {
+  const auto max_skew_threshold = options.max_skew_threshold;
+  const auto min_deletion_ratio = options.min_deletion_ratio;
+
+  return [max_segments_bytes, max_skew_threshold, min_deletion_ratio](
+              Consolidation& candidates, const IndexReader& reader,
+              const ConsolidatingSegments& consolidating_segments,
+              bool favorCleanupOverMerge) {
     // size of segments in bytes that are currently under consolidation
     [[maybe_unused]] size_t consolidating_size = 0;
     // the smallest segment
@@ -304,13 +293,14 @@ ConsolidationPolicy MakePolicy(const ConsolidateTier& options) {
     ///////////////////////////////////////////////////////////////////////////
 
     auto cleanup = [&](tier::ConsolidationCandidate<tier::SegmentStats>& best) -> bool {
-      return tier::findBestCleanupCandidate<tier::SegmentStats>(sorted_segments, tier::getSegmentDimensions, best);
+      return tier::findBestCleanupCandidate<tier::SegmentStats>(sorted_segments, min_deletion_ratio, tier::getSegmentDimensions, best);
     };
 
     auto merge = [&](tier::ConsolidationCandidate<tier::SegmentStats>& best) -> bool {
       return tier::findBestConsolidationCandidate<tier::SegmentStats>(
           sorted_segments,
           max_segments_bytes,
+          max_skew_threshold,
           tier::getSegmentDimensions, best);
     };
 

@@ -29,6 +29,9 @@
 
 namespace {
 
+constexpr double minDeletionPercentage { 0.5 };
+constexpr double maxSkewThreshold { 0.4 };
+
 [[maybe_unused]] void PrintConsolidation(
   const irs::IndexReader& reader, const irs::ConsolidationPolicy& policy) {
   struct less_t {
@@ -198,9 +201,6 @@ TEST(ConsolidationTierTest, MaxConsolidationSize) {
 
   {
     irs::index_utils::ConsolidateTier options;
-    options.floor_segment_bytes = 1;
-    options.max_segments = std::numeric_limits<size_t>::max();
-    options.min_segments = 1;
     options.max_segments_bytes = 10;
 
     irs::ConsolidatingSegments consolidating_segments;
@@ -247,9 +247,6 @@ TEST(ConsolidationTierTest, MaxConsolidationSize) {
   // invalid options: maxSegmentsBytes == 0
   {
     irs::index_utils::ConsolidateTier options;
-    options.floor_segment_bytes = 1;
-    options.max_segments = std::numeric_limits<size_t>::max();
-    options.min_segments = 1;
     options.max_segments_bytes = 0;
 
     irs::ConsolidatingSegments consolidating_segments;
@@ -269,9 +266,6 @@ TEST(ConsolidationTierTest, EmptyMeta) {
   IndexReaderMock reader{meta};
 
   irs::index_utils::ConsolidateTier options;
-  options.floor_segment_bytes = 1;
-  options.max_segments = 10;
-  options.min_segments = 1;
   options.max_segments_bytes = std::numeric_limits<size_t>::max();
 
   irs::ConsolidatingSegments consolidating_segments;
@@ -287,9 +281,6 @@ TEST(ConsolidationTierTest, EmptyConsolidatingSegment) {
   IndexReaderMock reader{meta};
 
   irs::index_utils::ConsolidateTier options;
-  options.floor_segment_bytes = 1;
-  options.max_segments = 10;
-  options.min_segments = 1;
   options.max_segments_bytes = std::numeric_limits<size_t>::max();
 
   irs::ConsolidatingSegments consolidating_segments{reader[0].Meta().name};
@@ -305,9 +296,6 @@ TEST(ConsolidationTierTest, EmptySegment) {
   IndexReaderMock reader{meta};
 
   irs::index_utils::ConsolidateTier options;
-  options.floor_segment_bytes = 1;
-  options.max_segments = 10;
-  options.min_segments = 1;
   options.max_segments_bytes = std::numeric_limits<size_t>::max();
 
   irs::ConsolidatingSegments consolidating_segments{reader[0].Meta().name};
@@ -332,9 +320,6 @@ TEST(ConsolidationTierTest, PreferConsolidationOverCleanupWhenDoesntMeetThreshol
   //  in tier::ConsolidationConfig.
 
   irs::index_utils::ConsolidateTier options;
-  options.floor_segment_bytes = 1;
-  options.max_segments = 2;
-  options.min_segments = 2;
   options.max_segments_bytes = std::numeric_limits<size_t>::max();
 
   irs::ConsolidatingSegments consolidating_segments;
@@ -359,9 +344,6 @@ TEST(ConsolidationTierTest, PreferCleanupWhenMeetsThreshold) {
 
   // ensure policy prefers segments with removals
   irs::index_utils::ConsolidateTier options;
-  options.floor_segment_bytes = 1;
-  options.max_segments = 2;
-  options.min_segments = 2;
   options.max_segments_bytes = std::numeric_limits<size_t>::max();
 
   irs::ConsolidatingSegments consolidating_segments;
@@ -375,9 +357,6 @@ TEST(ConsolidationTierTest, PreferCleanupWhenMeetsThreshold) {
 
 TEST(ConsolidationTierTest, Singleton) {
   irs::index_utils::ConsolidateTier options;
-  options.floor_segment_bytes = 1;
-  options.max_segments = std::numeric_limits<size_t>::max();
-  options.min_segments = 1;
   options.max_segments_bytes = std::numeric_limits<size_t>::max();
   auto policy = irs::index_utils::MakePolicy(options);
 
@@ -430,11 +409,7 @@ TEST(ConsolidationTierTest, Singleton) {
 
 TEST(ConsolidationTierTest, NoCandidates) {
   irs::index_utils::ConsolidateTier options;
-  options.floor_segment_bytes = 2097152;
   options.max_segments_bytes = 4294967296;
-  options.min_segments = 5;  // min number of segments per tier to merge at once
-  // max number of segments per tier to merge at once
-  options.max_segments = 10;
   auto policy = irs::index_utils::MakePolicy(options);
 
   irs::ConsolidatingSegments consolidating_segments;
@@ -586,7 +561,7 @@ TEST(ConsolidationTierTest, SkewedSegmentsAndMaxConsolidationSize) {
   std::vector<SEGMENT_SIZE> expected { 16, 32, 43, 49 };
 
   tier::ConsolidationCandidate<SEGMENT_SIZE> best;
-  auto result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, getAttributes, best);
+  auto result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, maxSkewThreshold, getAttributes, best);
   ASSERT_TRUE(result);
 
   //  [first, last] is inclusive of bounds.
@@ -631,7 +606,7 @@ TEST(ConsolidationTierTest, SkewOverThresholdDontConsolidate) {
     auto& segmentSizes = testcases[i];
     //  No cleanup candidates should be selected here.
     tier::ConsolidationCandidate<SEGMENT_SIZE> best;
-    auto result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, getAttributes, best);
+    auto result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, maxSkewThreshold, getAttributes, best);
     ASSERT_FALSE(result);
   }
 }
@@ -654,7 +629,7 @@ TEST(ConsolidationTierTest, NewSegmentAdditions) {
   };
 
   tier::ConsolidationCandidate<SEGMENT_SIZE> best;
-  auto result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, getAttributes, best);
+  auto result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, maxSkewThreshold, getAttributes, best);
   ASSERT_FALSE(result);
 
   //  Adding 2 segments of size 64 each will lower the
@@ -662,7 +637,7 @@ TEST(ConsolidationTierTest, NewSegmentAdditions) {
   //  of 0.4 thereby allowing consolidation.
   segmentSizes.emplace_back(64);
   segmentSizes.emplace_back(64);
-  result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, getAttributes, best);
+  result = tier::findBestConsolidationCandidate<SEGMENT_SIZE>(segmentSizes, maxSegmentsBytes, maxSkewThreshold, getAttributes, best);
   ASSERT_TRUE(result);
 
   //  [first, last] is inclusive of bounds.
@@ -687,7 +662,7 @@ TEST(ConsolidationTierTest, PopLeftTest) {
 
   //  No cleanup candidates should be selected here.
   tier::ConsolidationCandidate<int> best;
-  auto result = tier::findBestConsolidationCandidate<int>(segmentSizes, maxSegmentsBytes, getAttributes, best);
+  auto result = tier::findBestConsolidationCandidate<int>(segmentSizes, maxSegmentsBytes, maxSkewThreshold, getAttributes, best);
   ASSERT_TRUE(result);
 
   ASSERT_EQ(std::distance(best.first(), best.last()), 3);
@@ -754,7 +729,7 @@ TEST(ConsolidationTierTest, CleanupSmokeTest) {
     tier::ConsolidationCandidate<SegmentType> best;
 
     //  returns true if a cleanup candidate is found, false otherwise.
-    auto result = tier::findBestCleanupCandidate<SegmentType>(testcase, getSegmentAttributes, best);
+    auto result = tier::findBestCleanupCandidate<SegmentType>(testcase, minDeletionPercentage, getSegmentAttributes, best);
 
     ASSERT_EQ(result, expectedCandidate.size() > 0);
 
@@ -790,7 +765,7 @@ TEST(ConsolidationTierTest, SingleSegmentCleanup) {
     };
 
     tier::ConsolidationCandidate<SegmentType> best;
-    auto result = tier::findBestCleanupCandidate<SegmentType>(testcase, getSegmentAttributes, best);
+    auto result = tier::findBestCleanupCandidate<SegmentType>(testcase, minDeletionPercentage, getSegmentAttributes, best);
 
     ASSERT_TRUE(result);
     ASSERT_EQ(best.first()->first, 44);
@@ -861,7 +836,7 @@ TEST(ConsolidationTierTest, CombinedLivePercentageWithinThreshold) {
 
   //  No cleanup candidates should be selected here.
   tier::ConsolidationCandidate<SegmentType> best;
-  auto result = tier::findBestCleanupCandidate<SegmentType>(segments, getSegmentAttributes, best);
+  auto result = tier::findBestCleanupCandidate<SegmentType>(segments, minDeletionPercentage, getSegmentAttributes, best);
 
   ASSERT_FALSE(result);
 
@@ -869,7 +844,7 @@ TEST(ConsolidationTierTest, CombinedLivePercentageWithinThreshold) {
   //  The combined live % of all segments should now be
   //  within the threshold.
   segments.emplace_back(20, 100);
-  result = tier::findBestCleanupCandidate<SegmentType>(segments, getSegmentAttributes, best);
+  result = tier::findBestCleanupCandidate<SegmentType>(segments, minDeletionPercentage, getSegmentAttributes, best);
   ASSERT_TRUE(result);
 
   //  findBestCleanupCandidate sorts the candidates in
@@ -914,8 +889,8 @@ TEST(ConsolidationTierTest, NullChecks) {
 
     //  No cleanup candidates should be selected here.
     tier::ConsolidationCandidate<SegmentType> best;
-    tier::findBestCleanupCandidate<SegmentType>(segments, getSegmentAttributes, best);
-    tier::findBestConsolidationCandidate<SegmentType>(segments, maxSegmentsBytes, getSegmentAttributes, best);
+    tier::findBestCleanupCandidate<SegmentType>(segments, minDeletionPercentage, getSegmentAttributes, best);
+    tier::findBestConsolidationCandidate<SegmentType>(segments, maxSegmentsBytes, maxSkewThreshold, getSegmentAttributes, best);
   }
 
   //  Zero docs count
@@ -927,7 +902,7 @@ TEST(ConsolidationTierTest, NullChecks) {
 
     //  No cleanup candidates should be selected here.
     tier::ConsolidationCandidate<SegmentType> best;
-    tier::findBestCleanupCandidate<SegmentType>(segments, getSegmentAttributes, best);
-    tier::findBestConsolidationCandidate<SegmentType>(segments, maxSegmentsBytes, getSegmentAttributes, best);
+    tier::findBestCleanupCandidate<SegmentType>(segments, minDeletionPercentage, getSegmentAttributes, best);
+    tier::findBestConsolidationCandidate<SegmentType>(segments, maxSegmentsBytes, maxSkewThreshold, getSegmentAttributes, best);
   }
 }
