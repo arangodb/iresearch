@@ -368,8 +368,6 @@ struct ConsolidateDocsFill {
 
 ConsolidationPolicy MakePolicy(const ConsolidateDocsFill& options);
 
-//  [TODO] Currently unused as the new algorithm uses a different
-//  approach. Only max_segments_bytes is in use.
 struct ConsolidateTier {
   // maxinum allowed size of all consolidated segments
   size_t max_segments_bytes = size_t(8) * (1 << 30);
