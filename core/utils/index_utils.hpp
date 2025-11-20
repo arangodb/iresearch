@@ -61,15 +61,6 @@ namespace tier {
                           //  inversely proportional to the no. of deletions.
   };
 
-  struct ConsolidationConfig {
-    static constexpr size_t min_merge_window_size { 2 };   //  min window size for segments merge 
-    static constexpr double maxMergeScore { 0.4 };  //  max score allowed for candidates consolidation.
-                                                    //  Skip consolidation if candidate score is greater
-                                                    //  than this value.
-    static constexpr double maxLivePercentage { 0.5 };  //  Max live docs % of a segment to consider it
-                                                        //  for cleanup during consolidation.
-  };
-
   struct SegmentAttributes {
     uint64_t byteSize { 0 };
     uint64_t docsCount { 0 };
@@ -186,6 +177,7 @@ namespace tier {
   template<typename Segment>
   bool findBestCleanupCandidate(
     std::vector<Segment>& segments,
+    double minDeletionRatio,
     const std::function<
       void(const Segment&,
             tier::SegmentAttributes&
@@ -199,13 +191,14 @@ namespace tier {
 
         tier::SegmentAttributes attrs;
         getSegmentAttributes(left, attrs);
-        double lLivePerc;
-        lLivePerc = (0 == attrs.docsCount ? 0 : static_cast<double>(attrs.liveDocsCount) / attrs.docsCount);
+        double lDelPerc;
+        lDelPerc = (0 == attrs.docsCount ? 0.0 : static_cast<double>(attrs.docsCount - attrs.liveDocsCount) / attrs.docsCount);
 
         getSegmentAttributes(right, attrs);
-        auto rLivePerc = (0 == attrs.docsCount ? 0 : static_cast<double>(attrs.liveDocsCount) / attrs.docsCount);
+        double rDelPerc;
+        rDelPerc = (0 == attrs.docsCount ? 0.0 : static_cast<double>(attrs.docsCount - attrs.liveDocsCount) / attrs.docsCount);
 
-        return lLivePerc < rLivePerc;
+        return lDelPerc > rDelPerc;
       };
 
       std::sort(segments.begin(), segments.end(), segmentSortFunc);
@@ -213,7 +206,7 @@ namespace tier {
       uint32_t count = 0;
       uint64_t totalDocsCount = 0;
       uint64_t totalLiveDocsCount = 0;
-      double livePerc;
+      double delPercent;
 
       for (auto itr = segments.begin(); itr != segments.end(); itr++) {
 
@@ -223,8 +216,8 @@ namespace tier {
         totalDocsCount += attrs.docsCount;
         totalLiveDocsCount += attrs.liveDocsCount;
 
-        livePerc = static_cast<double>(totalLiveDocsCount) / totalDocsCount;
-        if (livePerc > tier::ConsolidationConfig::maxLivePercentage)
+        delPercent = static_cast<double>(totalDocsCount - totalLiveDocsCount) / totalDocsCount;
+        if (delPercent < minDeletionRatio)
           break;
 
         ++count;
@@ -263,13 +256,20 @@ namespace tier {
     bool findBestConsolidationCandidate(
       std::vector<Segment>& segments,
       size_t maxSegmentsBytes,
+      double maxSkewThreshold,
       const std::function<
         void(const Segment&,
              SegmentAttributes&
             )>& getSegmentAttributes,
       tier::ConsolidationCandidate<Segment>& best) {
 
-        if (segments.size() < tier::ConsolidationConfig::min_merge_window_size)
+        //  We use a min window size of 2 because consolidating
+        //  a single segment is unnecessary except for cleaning up
+        //  deleted documents from it.
+        //  But that part is covered by findBestCleanupCandidate().
+        static constexpr size_t minMergeWindowSize { 2 };
+
+        if (segments.size() < minMergeWindowSize)
           return false;
 
         //  sort segments by segment size
@@ -297,9 +297,8 @@ namespace tier {
         //  We start with a min. window size of 2
         //  since a window of size 1 will always
         //  give us a skew of 1.0.
-        uint64_t minWindowSize { tier::ConsolidationConfig::min_merge_window_size };
         auto front = segments.begin();
-        auto rear = front + minWindowSize - 1;
+        auto rear = front + minMergeWindowSize - 1;
         tier::ConsolidationCandidate<Segment> candidate(front, rear, getSegmentAttributes);
 
         //  Algorithm:
@@ -308,7 +307,7 @@ namespace tier {
         //  the window and we incrementally compute the merge cost for each subset.
         //  We move the left end ahead to remove segments from the window and we
         //  only do this when we're over the maxSegmentsBytes limit.
-        while ((candidate.first() + minWindowSize - 1) <= candidate.last() &&
+        while ((candidate.first() + minMergeWindowSize - 1) <= candidate.last() &&
                 candidate.last() < segments.end()) {
 
           if (candidate.mergeBytes > maxSegmentsBytes) {
@@ -316,7 +315,7 @@ namespace tier {
             continue;
           }
 
-          if (candidate.mergeScore <= tier::ConsolidationConfig::maxMergeScore &&
+          if (candidate.mergeScore <= maxSkewThreshold &&
               (!best.initialized || best.mergeScore > candidate.mergeScore))
             best = candidate;
 
@@ -376,16 +375,14 @@ ConsolidationPolicy MakePolicy(const ConsolidateDocsFill& options);
 //  [TODO] Currently unused as the new algorithm uses a different
 //  approach. Only max_segments_bytes is in use.
 struct ConsolidateTier {
-  // minimum allowed number of segments to consolidate at once
-  size_t min_segments = 50;
-  // maximum allowed number of segments to consolidate at once
-  size_t max_segments = 200;
   // maxinum allowed size of all consolidated segments
   size_t max_segments_bytes = size_t(8) * (1 << 30);
-  // treat all smaller segments as equal for consolidation selection
-  size_t floor_segment_bytes = size_t(24) * (1 << 20);
-  // filter out candidates with score less than min_score
-  double_t min_score = 0.;
+  // filter out candidates with skew greater than max_skew_threshold
+  // when picking merge candidates (findBestConsolidationCandidate)
+  double_t max_skew_threshold = 0.4;
+  // filter out candidates with deletion ratio lower than min_deletion_ratio
+  // when picking cleanup candidates (findBestCleanupCandidate)
+  double_t min_deletion_ratio = 0.5;
 };
 
 ConsolidationPolicy MakePolicy(const ConsolidateTier& options);
