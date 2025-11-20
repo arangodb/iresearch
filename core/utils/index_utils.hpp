@@ -111,7 +111,6 @@ namespace tier {
       } while (itr++ != end);
 
       skew = static_cast<double>(attrs.byteSize) / mergeBytes;
-      mergeScore = skew;
     }
 
     //  It is the caller's responsibility to ensure that
@@ -135,7 +134,6 @@ namespace tier {
 
       mergeBytes -= remSegAttrs.byteSize;
       skew = static_cast<double>(lastSegAttrs.byteSize) / mergeBytes;
-      mergeScore = skew;
 
       return true;
     }
@@ -157,7 +155,6 @@ namespace tier {
 
       mergeBytes += attrs.byteSize;
       skew = static_cast<double>(attrs.byteSize) / mergeBytes;
-      mergeScore = skew;
 
       return true;
     }
@@ -167,7 +164,6 @@ namespace tier {
 
     size_t mergeBytes { 0 };
     double skew { 0.0 };
-    double mergeScore { 0.0 };
     bool initialized { false };
 
     range_t segments;
@@ -315,8 +311,8 @@ namespace tier {
             continue;
           }
 
-          if (candidate.mergeScore <= maxSkewThreshold &&
-              (!best.initialized || best.mergeScore > candidate.mergeScore))
+          if (candidate.skew <= maxSkewThreshold &&
+              (!best.initialized || best.skew > candidate.skew))
             best = candidate;
 
           if (candidate.last() == (segments.end() - 1))
