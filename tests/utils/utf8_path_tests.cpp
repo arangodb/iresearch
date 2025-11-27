@@ -26,6 +26,7 @@
 #include <filesystem>
 #include <fstream>
 #include <thread>
+#include <algorithm>
 
 #include "tests_shared.hpp"
 #include "utils/file_utils.hpp"

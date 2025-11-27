@@ -40,6 +40,7 @@ set(IReSearch_tests_sources
   ./formats/formats_tests.cpp
   ./formats/formats_test_case_base.cpp
   ./formats/skip_list_test.cpp
+  ./formats/address_table_tests.cpp
   ./store/directory_test_case.cpp
   ./store/caching_directory_test.cpp
   ./store/directory_cleaner_tests.cpp
@@ -121,6 +122,7 @@ set(IReSearch_tests_sources
   ./utils/fst_utils_test.cpp
   ./utils/fst_string_weight_test.cpp
   ./utils/ngram_match_utils_tests.cpp
+  ./memory/IResearchMemoryManager_tests.cpp
   ./tests_param.cpp
   ./tests_main.cpp
   )
